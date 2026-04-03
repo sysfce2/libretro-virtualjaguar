@@ -35,7 +35,7 @@ jobs:
     runs-on: ${{ matrix.config.os }}
     
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Add Msys64 to PATH
       if: matrix.config.os == 'windows-latest'
       run: |
@@ -53,13 +53,8 @@ jobs:
 #         args: ${{ matrix.config.artifact }}
 
     - name: upload artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: core-${{ matrix.config.os }}
         path: ${{ matrix.config.artifact }}
         if-no-files-found: error
-
-    - name: download artifacts
-      uses: actions/download-artifact@v2
-      with:
-        name: core-${{ matrix.config.os }}

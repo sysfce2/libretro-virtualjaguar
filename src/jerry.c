@@ -384,9 +384,24 @@ uint8_t JERRYReadByte(uint32_t offset, uint32_t who/*=UNKNOWN*/)
    //	F10038          R     xxxxxxxx xxxxxxxx   JPIT2 - timer 1 divider
    //	F1003A          R     xxxxxxxx xxxxxxxx   JPIT3 - timer 2 pre-scaler
    //	F1003C          R     xxxxxxxx xxxxxxxx   JPIT4 - timer 2 divider
+   //	F10036          R     xxxxxxxx xxxxxxxx   JPIT1 - timer 1 pre-scaler
+   //	F10038          R     xxxxxxxx xxxxxxxx   JPIT2 - timer 1 divider
+   //	F1003A          R     xxxxxxxx xxxxxxxx   JPIT3 - timer 2 pre-scaler
+   //	F1003C          R     xxxxxxxx xxxxxxxx   JPIT4 - timer 2 divider
    else if ((offset >= 0xF10036) && (offset <= 0xF1003D))
    {
-      /* Unhandled timer read (BYTE) */
+      uint16_t value;
+
+      switch (offset & 0xFE)
+      {
+         case 0x36: value = JERRYPIT1Prescaler; break;
+         case 0x38: value = JERRYPIT1Divider;   break;
+         case 0x3A: value = JERRYPIT2Prescaler; break;
+         case 0x3C: value = JERRYPIT2Divider;   break;
+         default:   value = 0;                  break;
+      }
+
+      return (offset & 0x01) ? (value & 0xFF) : (value >> 8);
    }
    else if (offset >= 0xF14000 && offset <= 0xF14003)
    {
@@ -426,7 +441,13 @@ uint16_t JERRYReadWord(uint32_t offset, uint32_t who/*=UNKNOWN*/)
    //	F1003C          R     xxxxxxxx xxxxxxxx   JPIT4 - timer 2 divider
    else if ((offset >= 0xF10036) && (offset <= 0xF1003D))
    {
-      /* Unhandled timer read (WORD) */
+      switch (offset)
+      {
+         case 0xF10036: return JERRYPIT1Prescaler;
+         case 0xF10038: return JERRYPIT1Divider;
+         case 0xF1003A: return JERRYPIT2Prescaler;
+         case 0xF1003C: return JERRYPIT2Divider;
+      }
    }
    else if (offset == 0xF10020)
       return jerryPendingInterrupt;

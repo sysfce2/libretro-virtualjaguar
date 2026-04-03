@@ -737,12 +737,11 @@ void TOMExecHalfline(uint16_t halfline, bool render)
    halfline &= 0x07FF;
 
    // Update HC to approximate position within the scanline.
-   // Even halflines = start of scanline (HC near 0),
-   // odd halflines = midpoint of scanline (HC near HP/2).
-   // This is not cycle-accurate but gives the OP and games a
-   // meaningful value instead of the previous rand() stub.
+   // Bit 10 (0x0400) is the half-line indicator, analogous to VC's
+   // field bit 11. The OP tests this via CONDITION_SECOND_HALF_LINE.
+   // Bits 0-9 approximate the position within the half-line.
    if (halfline & 0x01)
-      SET16(tomRam8, HC, (hp > 0 ? (hp + 1) / 2 : 0));
+      SET16(tomRam8, HC, 0x0400 | (hp > 0 ? (hp + 1) / 2 : 0));
    else
       SET16(tomRam8, HC, 0);
 

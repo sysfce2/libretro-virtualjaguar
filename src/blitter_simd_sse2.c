@@ -124,21 +124,18 @@ static uint8_t sse2_zcomp(uint64_t srcz, uint64_t dstz, uint8_t zmode)
  */
 static uint64_t sse2_byte_merge(uint64_t src, uint64_t dst, uint16_t mask)
 {
-   /* Build an 8-byte selection mask:
-    * byte 0 = low 8 bits of mask (per-bit)
-    * bytes 1-7 = 0xFF or 0x00 based on mask bits 8-14 */
-   uint8_t sel[8];
-   sel[0] = (uint8_t)(mask & 0xFF);
-   sel[1] = (mask & 0x0100) ? 0xFF : 0x00;
-   sel[2] = (mask & 0x0200) ? 0xFF : 0x00;
-   sel[3] = (mask & 0x0400) ? 0xFF : 0x00;
-   sel[4] = (mask & 0x0800) ? 0xFF : 0x00;
-   sel[5] = (mask & 0x1000) ? 0xFF : 0x00;
-   sel[6] = (mask & 0x2000) ? 0xFF : 0x00;
-   sel[7] = (mask & 0x4000) ? 0xFF : 0x00;
-
-   uint64_t sel64;
-   __builtin_memcpy(&sel64, sel, 8);
+   /* Build an 8-byte selection mask directly via bit arithmetic.
+    * Byte 0 = low 8 bits of mask (per-bit blend).
+    * Bytes 1-7 = 0xFF or 0x00 from mask bits 8-14 (whole-byte select).
+    * We expand each bit to a full 0xFF byte using sign-extension. */
+   uint64_t sel64 = (uint64_t)(mask & 0xFF);  /* byte 0: per-bit */
+   sel64 |= (uint64_t)((uint8_t)(-(int8_t)((mask >> 8)  & 1))) << 8;
+   sel64 |= (uint64_t)((uint8_t)(-(int8_t)((mask >> 9)  & 1))) << 16;
+   sel64 |= (uint64_t)((uint8_t)(-(int8_t)((mask >> 10) & 1))) << 24;
+   sel64 |= (uint64_t)((uint8_t)(-(int8_t)((mask >> 11) & 1))) << 32;
+   sel64 |= (uint64_t)((uint8_t)(-(int8_t)((mask >> 12) & 1))) << 40;
+   sel64 |= (uint64_t)((uint8_t)(-(int8_t)((mask >> 13) & 1))) << 48;
+   sel64 |= (uint64_t)((uint8_t)(-(int8_t)((mask >> 14) & 1))) << 56;
 
    __m128i vmask = _mm_set_epi64x(0, (int64_t)sel64);
    __m128i vsrc  = _mm_set_epi64x(0, (int64_t)src);

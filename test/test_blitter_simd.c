@@ -1,14 +1,14 @@
 /*
  * Bit-exactness and performance test for blitter SIMD operations.
  *
- * Build (from repo root):
+ * Build (from repo root — link exactly one SIMD implementation):
  *   # On macOS ARM64 (NEON):
  *   cc -O2 -o test/test_blitter_simd test/test_blitter_simd.c \
- *      src/blitter_simd_neon.c src/blitter_simd_scalar.c
+ *      src/blitter_simd_neon.c
  *
  *   # On x86_64 (SSE2):
  *   cc -O2 -msse2 -o test/test_blitter_simd test/test_blitter_simd.c \
- *      src/blitter_simd_sse2.c src/blitter_simd_scalar.c
+ *      src/blitter_simd_sse2.c
  *
  *   # Scalar-only (any platform):
  *   cc -O2 -o test/test_blitter_simd test/test_blitter_simd.c \
@@ -297,31 +297,51 @@ static void test_byte_merge(void)
 
 #define BENCH_ITERS 1000000
 
-static double elapsed_ns(struct timespec start, struct timespec end)
+/* Portable high-resolution timer.
+ * Uses clock_gettime on POSIX, QueryPerformanceCounter on Windows.
+ * Declare TIMER_DECL() once per scope, then use START/STOP/NS freely. */
+#ifdef _WIN32
+#include <windows.h>
+static double get_time_ns(void)
 {
-   return (double)(end.tv_sec - start.tv_sec) * 1e9
-        + (double)(end.tv_nsec - start.tv_nsec);
+   static LARGE_INTEGER freq = {0};
+   LARGE_INTEGER count;
+   if (freq.QuadPart == 0)
+      QueryPerformanceFrequency(&freq);
+   QueryPerformanceCounter(&count);
+   return (double)count.QuadPart / (double)freq.QuadPart * 1e9;
 }
+#define TIMER_DECL()  double _timer_t0, _timer_t1
+#define TIMER_START() (_timer_t0 = get_time_ns())
+#define TIMER_STOP()  (_timer_t1 = get_time_ns())
+#define TIMER_NS()    (_timer_t1 - _timer_t0)
+#else
+#define TIMER_DECL()  struct timespec _timer_ts0, _timer_ts1
+#define TIMER_START() clock_gettime(CLOCK_MONOTONIC, &_timer_ts0)
+#define TIMER_STOP()  clock_gettime(CLOCK_MONOTONIC, &_timer_ts1)
+#define TIMER_NS()    (((double)(_timer_ts1.tv_sec - _timer_ts0.tv_sec) * 1e9) + (double)(_timer_ts1.tv_nsec - _timer_ts0.tv_nsec))
+#endif
 
 static void bench_lfu(void)
 {
-   struct timespec t0, t1;
+   TIMER_DECL();
    volatile uint64_t sink = 0;
    int i;
+   double ref_ns, simd_ns;
 
    /* Ref */
-   clock_gettime(CLOCK_MONOTONIC, &t0);
+   TIMER_START();
    for (i = 0; i < BENCH_ITERS; i++)
       sink += ref_lfu(0xAAAAAAAAAAAAAAAAULL, 0x5555555555555555ULL, (uint8_t)(i & 0x0F));
-   clock_gettime(CLOCK_MONOTONIC, &t1);
-   double ref_ns = elapsed_ns(t0, t1) / BENCH_ITERS;
+   TIMER_STOP();
+   ref_ns = TIMER_NS() / BENCH_ITERS;
 
    /* SIMD */
-   clock_gettime(CLOCK_MONOTONIC, &t0);
+   TIMER_START();
    for (i = 0; i < BENCH_ITERS; i++)
       sink += blitter_simd_ops.lfu(0xAAAAAAAAAAAAAAAAULL, 0x5555555555555555ULL, (uint8_t)(i & 0x0F));
-   clock_gettime(CLOCK_MONOTONIC, &t1);
-   double simd_ns = elapsed_ns(t0, t1) / BENCH_ITERS;
+   TIMER_STOP();
+   simd_ns = TIMER_NS() / BENCH_ITERS;
 
    printf("  LFU:        ref=%6.1f ns/op  simd=%6.1f ns/op  speedup=%.2fx\n",
           ref_ns, simd_ns, ref_ns / simd_ns);
@@ -330,21 +350,22 @@ static void bench_lfu(void)
 
 static void bench_dcomp(void)
 {
-   struct timespec t0, t1;
+   TIMER_DECL();
    volatile uint8_t sink = 0;
    int i;
+   double ref_ns, simd_ns;
 
-   clock_gettime(CLOCK_MONOTONIC, &t0);
+   TIMER_START();
    for (i = 0; i < BENCH_ITERS; i++)
       sink += ref_dcomp(0x0102030405060708ULL, (uint64_t)i, 0, false);
-   clock_gettime(CLOCK_MONOTONIC, &t1);
-   double ref_ns = elapsed_ns(t0, t1) / BENCH_ITERS;
+   TIMER_STOP();
+   ref_ns = TIMER_NS() / BENCH_ITERS;
 
-   clock_gettime(CLOCK_MONOTONIC, &t0);
+   TIMER_START();
    for (i = 0; i < BENCH_ITERS; i++)
       sink += blitter_simd_ops.dcomp(0x0102030405060708ULL, (uint64_t)i, 0, false);
-   clock_gettime(CLOCK_MONOTONIC, &t1);
-   double simd_ns = elapsed_ns(t0, t1) / BENCH_ITERS;
+   TIMER_STOP();
+   simd_ns = TIMER_NS() / BENCH_ITERS;
 
    printf("  DCOMP:      ref=%6.1f ns/op  simd=%6.1f ns/op  speedup=%.2fx\n",
           ref_ns, simd_ns, ref_ns / simd_ns);
@@ -353,21 +374,22 @@ static void bench_dcomp(void)
 
 static void bench_zcomp(void)
 {
-   struct timespec t0, t1;
+   TIMER_DECL();
    volatile uint8_t sink = 0;
    int i;
+   double ref_ns, simd_ns;
 
-   clock_gettime(CLOCK_MONOTONIC, &t0);
+   TIMER_START();
    for (i = 0; i < BENCH_ITERS; i++)
       sink += ref_zcomp(0x0001000200030004ULL, 0x0002000200020002ULL, (uint8_t)(i & 0x07));
-   clock_gettime(CLOCK_MONOTONIC, &t1);
-   double ref_ns = elapsed_ns(t0, t1) / BENCH_ITERS;
+   TIMER_STOP();
+   ref_ns = TIMER_NS() / BENCH_ITERS;
 
-   clock_gettime(CLOCK_MONOTONIC, &t0);
+   TIMER_START();
    for (i = 0; i < BENCH_ITERS; i++)
       sink += blitter_simd_ops.zcomp(0x0001000200030004ULL, 0x0002000200020002ULL, (uint8_t)(i & 0x07));
-   clock_gettime(CLOCK_MONOTONIC, &t1);
-   double simd_ns = elapsed_ns(t0, t1) / BENCH_ITERS;
+   TIMER_STOP();
+   simd_ns = TIMER_NS() / BENCH_ITERS;
 
    printf("  ZCOMP:      ref=%6.1f ns/op  simd=%6.1f ns/op  speedup=%.2fx\n",
           ref_ns, simd_ns, ref_ns / simd_ns);
@@ -376,21 +398,22 @@ static void bench_zcomp(void)
 
 static void bench_byte_merge(void)
 {
-   struct timespec t0, t1;
+   TIMER_DECL();
    volatile uint64_t sink = 0;
    int i;
+   double ref_ns, simd_ns;
 
-   clock_gettime(CLOCK_MONOTONIC, &t0);
+   TIMER_START();
    for (i = 0; i < BENCH_ITERS; i++)
       sink += ref_byte_merge(0xAAAAAAAAAAAAAAAAULL, 0x5555555555555555ULL, (uint16_t)(i & 0x7FFF));
-   clock_gettime(CLOCK_MONOTONIC, &t1);
-   double ref_ns = elapsed_ns(t0, t1) / BENCH_ITERS;
+   TIMER_STOP();
+   ref_ns = TIMER_NS() / BENCH_ITERS;
 
-   clock_gettime(CLOCK_MONOTONIC, &t0);
+   TIMER_START();
    for (i = 0; i < BENCH_ITERS; i++)
       sink += blitter_simd_ops.byte_merge(0xAAAAAAAAAAAAAAAAULL, 0x5555555555555555ULL, (uint16_t)(i & 0x7FFF));
-   clock_gettime(CLOCK_MONOTONIC, &t1);
-   double simd_ns = elapsed_ns(t0, t1) / BENCH_ITERS;
+   TIMER_STOP();
+   simd_ns = TIMER_NS() / BENCH_ITERS;
 
    printf("  byte_merge: ref=%6.1f ns/op  simd=%6.1f ns/op  speedup=%.2fx\n",
           ref_ns, simd_ns, ref_ns / simd_ns);
@@ -423,4 +446,6 @@ int main(int argc, char *argv[])
           tests_run, tests_run - failures, failures);
 
    return failures > 0 ? 1 : 0;
+}
+? 1 : 0;
 }

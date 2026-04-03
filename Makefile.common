@@ -49,23 +49,30 @@ SOURCES_C :=  \
 	$(CORE_DIR)/src/wavetable.c
 
 # SIMD-accelerated blitter operations: select arch-specific implementation.
+# Override with BLITTER_SIMD=scalar|sse2|neon for cross-compilation.
 # Default to portable scalar fallback.
 BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_scalar.c
 
-# x86/x64: use SSE2 (baseline for all x86_64, available since Pentium 4)
-ifneq (,$(filter x86_64 x86 i686 i386,$(shell uname -m 2>/dev/null)))
-   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
-endif
-# MSYS2/MinGW on x86_64
-ifneq (,$(filter MINGW64%,$(MSYSTEM)))
-   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
+ifdef BLITTER_SIMD
+   # Explicit override for cross-compilation or custom builds
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_$(BLITTER_SIMD).c
+else
+   # Auto-detect from host architecture (native builds only)
+   # x86/x64: use SSE2 (baseline for all x86_64, available since Pentium 4)
+   ifneq (,$(filter x86_64 x86 i686 i386,$(shell uname -m 2>/dev/null)))
+      BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
+   endif
+   # MSYS2/MinGW on x86_64
+   ifneq (,$(filter MINGW64%,$(MSYSTEM)))
+      BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
+   endif
+   # ARM64 (AArch64): NEON is always available
+   ifneq (,$(filter aarch64 arm64,$(shell uname -m 2>/dev/null)))
+      BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_neon.c
+   endif
 endif
 
-# ARM64 (AArch64): NEON is always available
-ifneq (,$(filter aarch64 arm64,$(shell uname -m 2>/dev/null)))
-   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_neon.c
-endif
-# iOS/tvOS ARM64 cross-compilation
+# Platform-based overrides (cross-compilation targets)
 ifneq (,$(filter ios-arm64 tvos-arm64,$(platform)))
    BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_neon.c
 endif

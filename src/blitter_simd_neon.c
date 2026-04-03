@@ -54,19 +54,15 @@ static uint8_t neon_dcomp(uint64_t patd, uint64_t srcd, uint64_t dstd, bool cmpd
    uint8x8_t vzero = vdup_n_u8(0);
    uint8x8_t vcmp = vceq_u8(vxor, vzero);  /* 0xFF where equal, 0 otherwise */
 
-   /* Extract one bit per byte.
-    * Multiply each lane by a power-of-2 weight and horizontal add.
-    * Weights: 1, 2, 4, 8, 16, 32, 64, 128 */
-   static const uint8_t weights[8] = { 1, 2, 4, 8, 16, 32, 64, 128 };
-   uint8x8_t vw = vld1_u8(weights);
-
-   /* AND with weights (0xFF & weight = weight, 0 & weight = 0) */
+   /* Extract one bit per byte using power-of-2 weights.
+    * vcreate avoids a static const load on every call. */
+   uint8x8_t vw = vcreate_u8(0x8040201008040201ULL);
    uint8x8_t vbits = vand_u8(vcmp, vw);
 
-   /* Pairwise add to collapse 8 bytes -> 4 -> 2 -> 1 */
-   uint8x8_t sum1 = vpadd_u8(vbits, vbits);  /* 4 sums */
-   uint8x8_t sum2 = vpadd_u8(sum1, sum1);     /* 2 sums */
-   uint8x8_t sum3 = vpadd_u8(sum2, sum2);     /* 1 sum  */
+   /* Pairwise horizontal add: 8 -> 4 -> 2 -> 1 */
+   uint8x8_t sum1 = vpadd_u8(vbits, vbits);
+   uint8x8_t sum2 = vpadd_u8(sum1, sum1);
+   uint8x8_t sum3 = vpadd_u8(sum2, sum2);
 
    return vget_lane_u8(sum3, 0);
 }

@@ -30,7 +30,8 @@ typedef struct
    uint8_t  (*zcomp)(uint64_t srcz, uint64_t dstz, uint8_t zmode);
 
    /* Byte Mask Merge: select bytes from src or dst based on 16-bit mask.
-    * Bit 0 controls byte 0 (per-bit within byte 0), bits 8-14 control bytes 1-7.
+    * Bits 0-7 control byte 0 (per-bit blend within the lowest byte).
+    * Bits 8-14 control bytes 1-7 (whole-byte select, one bit each).
     * Used for both pixel data (ddat/dstd) and Z data (srcz/dstz). */
    uint64_t (*byte_merge)(uint64_t src, uint64_t dst, uint16_t mask);
 } blitter_simd_ops_t;

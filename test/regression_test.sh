@@ -106,29 +106,44 @@ for rom in "${ROM_DIR}"/*.j64 "${ROM_DIR}"/*.rom; do
         # Compare against reference screenshot
         if command -v compare &>/dev/null; then
             # ImageMagick compare: generate diff image and get metric
+            set +e
             metric_raw=$(compare -metric AE "${baseline_png}" "${frame_file}" \
-                "${DIFF_DIR}/${rom_name}_diff.png" 2>&1 || true)
-            # Extract just the integer pixel count (ImageMagick may output "0 (0)")
-            metric=$(echo "${metric_raw}" | awk '{print $1}')
+                "${DIFF_DIR}/${rom_name}_diff.png" 2>&1)
+            compare_status=$?
+            set -e
 
-            if [ "${metric}" = "0" ]; then
-                echo "   PASS: ${rom_name} (0 pixels differ)"
-                PASS=$((PASS + 1))
-                SUMMARY="${SUMMARY}| ${rom_name} | :white_check_mark: PASS | 0 pixels differ | - |\n"
-                # Clean up diff artifacts on pass
-                rm -f "${DIFF_DIR}/${rom_name}_diff.png" "${DIFF_DIR}/${rom_name}_current.png"
-            else
-                echo "   FAIL: ${rom_name} (${metric} pixels differ)"
-                # Also generate a side-by-side comparison
-                if command -v montage &>/dev/null; then
-                    montage "${baseline_png}" "${frame_file}" "${DIFF_DIR}/${rom_name}_diff.png" \
-                        -tile 3x1 -geometry +4+4 -label '%f' \
-                        "${DIFF_DIR}/${rom_name}_sidebyside.png" 2>/dev/null || true
+            if [ "${compare_status}" -le 1 ]; then
+                # Extract just the integer pixel count (ImageMagick may output "0 (0)")
+                metric=$(printf '%s\n' "${metric_raw}" | awk 'NR==1 {print $1}')
+
+                if [[ "${metric}" =~ ^[0-9]+$ ]] && [ "${metric}" = "0" ]; then
+                    echo "   PASS: ${rom_name} (0 pixels differ)"
+                    PASS=$((PASS + 1))
+                    SUMMARY="${SUMMARY}| ${rom_name} | :white_check_mark: PASS | 0 pixels differ | - |\n"
+                    # Clean up diff artifacts on pass
+                    rm -f "${DIFF_DIR}/${rom_name}_diff.png" "${DIFF_DIR}/${rom_name}_current.png"
+                elif [[ "${metric}" =~ ^[0-9]+$ ]]; then
+                    echo "   FAIL: ${rom_name} (${metric} pixels differ)"
+                    # Also generate a side-by-side comparison
+                    if command -v montage &>/dev/null; then
+                        montage "${baseline_png}" "${frame_file}" "${DIFF_DIR}/${rom_name}_diff.png" \
+                            -tile 3x1 -geometry +4+4 -label '%f' \
+                            "${DIFF_DIR}/${rom_name}_sidebyside.png" 2>/dev/null || true
+                    fi
+                    cp "${baseline_png}" "${DIFF_DIR}/${rom_name}_expected.png"
+                    FAIL=$((FAIL + 1))
+                    SUMMARY="${SUMMARY}| ${rom_name} | :x: FAIL | ${metric} pixels differ | See artifacts |\n"
+                else
+                    echo "   FAIL: ${rom_name} (compare error: ${metric_raw})"
+                    cp "${baseline_png}" "${DIFF_DIR}/${rom_name}_expected.png"
+                    FAIL=$((FAIL + 1))
+                    SUMMARY="${SUMMARY}| ${rom_name} | :x: FAIL | compare error | See artifacts |\n"
                 fi
-                # Copy baseline to diff dir for artifact upload
+            else
+                echo "   FAIL: ${rom_name} (compare failed: ${metric_raw})"
                 cp "${baseline_png}" "${DIFF_DIR}/${rom_name}_expected.png"
                 FAIL=$((FAIL + 1))
-                SUMMARY="${SUMMARY}| ${rom_name} | :x: FAIL | ${metric} pixels differ | See artifacts |\n"
+                SUMMARY="${SUMMARY}| ${rom_name} | :x: FAIL | compare error | See artifacts |\n"
             fi
         else
             # Fallback: byte-level comparison

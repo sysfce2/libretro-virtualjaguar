@@ -7,3 +7,4 @@
 *.bc
 .DS_Store
 .build
+/.claude

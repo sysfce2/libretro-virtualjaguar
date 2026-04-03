@@ -5,19 +5,18 @@
 # Builds miniretro, runs test ROMs for N frames, dumps screenshots,
 # and compares the last screenshot's checksum against a known baseline.
 #
-# Usage: ./test/regression_test.sh <core_path> [platform]
-# Example: ./test/regression_test.sh ./virtualjaguar_libretro.so linux-x86_64
+# Usage: ./test/regression_test.sh <core_path>
+# Example: ./test/regression_test.sh ./virtualjaguar_libretro.so
+#
+# Set MINIRETRO_BIN env var to skip building miniretro from source.
 #
 set -euo pipefail
 
-CORE="${1:?Usage: $0 <core_path> [platform]}"
-PLATFORM="${2:-$(uname -s)-$(uname -m)}"
+CORE="${1:?Usage: $0 <core_path>}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORK_DIR="$(mktemp -d)"
-BASELINE_DIR="${SCRIPT_DIR}/baselines/${PLATFORM}"
+BASELINE_DIR="${SCRIPT_DIR}/baselines"
 ROM_DIR="${SCRIPT_DIR}/roms"
-MINIRETRO_DIR="${WORK_DIR}/miniretro"
-MINIRETRO_BIN="${WORK_DIR}/miniretro-bin"
 FRAMES=60
 DUMP_EVERY=10
 
@@ -39,12 +38,12 @@ if [ -n "${MINIRETRO_BIN:-}" ] && [ -x "${MINIRETRO_BIN}" ]; then
 else
     MINIRETRO_BIN="${WORK_DIR}/miniretro-bin"
     echo "==> Building miniretro..."
-    git clone --depth 1 https://github.com/davidgfnet/miniretro.git "${MINIRETRO_DIR}" 2>/dev/null
-    ${BUILD_CXX} -O2 -Wall -Wno-deprecated-declarations \
+    git clone --depth 1 https://github.com/davidgfnet/miniretro.git "${WORK_DIR}/miniretro" 2>/dev/null
+    ${BUILD_CXX} -O2 -Wall -Wno-deprecated-declarations -Wno-unused-result \
         -o "${MINIRETRO_BIN}" \
-        "${MINIRETRO_DIR}/miniretro.cc" \
-        "${MINIRETRO_DIR}/util.cc" \
-        "${MINIRETRO_DIR}/loader.cc" \
+        "${WORK_DIR}/miniretro/miniretro.cc" \
+        "${WORK_DIR}/miniretro/util.cc" \
+        "${WORK_DIR}/miniretro/loader.cc" \
         ${LDFLAGS}
 
     if [ ! -x "${MINIRETRO_BIN}" ]; then
@@ -53,7 +52,7 @@ else
     fi
     echo "==> miniretro built successfully"
 fi
-echo "==> Platform: ${PLATFORM}"
+
 echo "==> Baselines: ${BASELINE_DIR}"
 
 # --- Resolve core to absolute path ---
@@ -63,8 +62,6 @@ CORE="$(cd "$(dirname "${CORE}")" && pwd)/$(basename "${CORE}")"
 PASS=0
 FAIL=0
 NEW=0
-
-mkdir -p "${BASELINE_DIR}"
 
 for rom in "${ROM_DIR}"/*.j64 "${ROM_DIR}"/*.rom; do
     [ -f "${rom}" ] || continue

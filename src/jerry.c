@@ -388,13 +388,13 @@ uint8_t JERRYReadByte(uint32_t offset, uint32_t who/*=UNKNOWN*/)
    {
       uint16_t value;
 
-      switch (offset & 0xFE)
+      switch (offset & 0xFFFFFFFE)
       {
-         case 0x36: value = JERRYPIT1Prescaler; break;
-         case 0x38: value = JERRYPIT1Divider;   break;
-         case 0x3A: value = JERRYPIT2Prescaler; break;
-         case 0x3C: value = JERRYPIT2Divider;   break;
-         default:   value = 0;                  break;
+         case 0xF10036: value = JERRYPIT1Prescaler; break;
+         case 0xF10038: value = JERRYPIT1Divider;   break;
+         case 0xF1003A: value = JERRYPIT2Prescaler; break;
+         case 0xF1003C: value = JERRYPIT2Divider;   break;
+         default:       value = 0;                  break;
       }
 
       return (offset & 0x01) ? (value & 0xFF) : (value >> 8);

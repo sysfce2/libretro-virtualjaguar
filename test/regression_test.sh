@@ -174,7 +174,7 @@ run_and_get_frame() {
     "${MINIRETRO_BIN}" \
         --core "${CORE}" --rom "$1" \
         --output "${out_dir}" --system "${out_dir}" \
-        --frames 300 --dump-frames-every 100 \
+        --frames "${FRAMES}" --dump-frames-every "${DUMP_EVERY}" \
         --no-alarm ${envvar_args} >/dev/null 2>&1 || true
     find "${out_dir}" -name "screenshot*.png" 2>/dev/null | sort | tail -1
 }
@@ -206,7 +206,9 @@ for rom in "${ROM_DIR}"/*.j64 "${ROM_DIR}"/*.rom; do
             SUMMARY="${SUMMARY}| ${rom_name} (determinism) | :x: FAIL | non-deterministic output | See artifacts |\n"
         fi
     else
-        echo "   SKIP: ${rom_name} determinism (no frames produced)"
+        echo "   FAIL: ${rom_name} determinism (no frames produced)"
+        FAIL=$((FAIL + 1))
+        SUMMARY="${SUMMARY}| ${rom_name} (determinism) | :x: FAIL | no frames produced | - |\n"
     fi
 done
 
@@ -238,7 +240,9 @@ for rom in "${ROM_DIR}"/*.j64 "${ROM_DIR}"/*.rom; do
             SUMMARY="${SUMMARY}| ${rom_name} (frameskip) | :x: FAIL | frameskip changes output | See artifacts |\n"
         fi
     else
-        echo "   SKIP: ${rom_name} frameskip (no frames produced)"
+        echo "   FAIL: ${rom_name} frameskip (no frames produced)"
+        FAIL=$((FAIL + 1))
+        SUMMARY="${SUMMARY}| ${rom_name} (frameskip) | :x: FAIL | no frames produced | - |\n"
     fi
 done
 

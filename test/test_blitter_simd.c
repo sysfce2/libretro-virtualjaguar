@@ -447,5 +447,3 @@ int main(int argc, char *argv[])
 
    return failures > 0 ? 1 : 0;
 }
-? 1 : 0;
-}

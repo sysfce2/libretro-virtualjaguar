@@ -54,17 +54,20 @@ static uint8_t neon_dcomp(uint64_t patd, uint64_t srcd, uint64_t dstd, bool cmpd
    uint8x8_t vzero = vdup_n_u8(0);
    uint8x8_t vcmp = vceq_u8(vxor, vzero);  /* 0xFF where equal, 0 otherwise */
 
-   /* Extract one bit per byte using power-of-2 weights.
-    * vcreate avoids a static const load on every call. */
-   uint8x8_t vw = vcreate_u8(0x8040201008040201ULL);
-   uint8x8_t vbits = vand_u8(vcmp, vw);
+   /* Convert compare lanes from 0xFF/0x00 to 1/0, then pack into
+    * the result byte via lane extraction — avoids weights load
+    * and vpadd chain. */
+   uint8x8_t vbits = vshr_n_u8(vcmp, 7);
 
-   /* Pairwise horizontal add: 8 -> 4 -> 2 -> 1 */
-   uint8x8_t sum1 = vpadd_u8(vbits, vbits);
-   uint8x8_t sum2 = vpadd_u8(sum1, sum1);
-   uint8x8_t sum3 = vpadd_u8(sum2, sum2);
-
-   return vget_lane_u8(sum3, 0);
+   return (uint8_t)(
+      (vget_lane_u8(vbits, 0) << 0) |
+      (vget_lane_u8(vbits, 1) << 1) |
+      (vget_lane_u8(vbits, 2) << 2) |
+      (vget_lane_u8(vbits, 3) << 3) |
+      (vget_lane_u8(vbits, 4) << 4) |
+      (vget_lane_u8(vbits, 5) << 5) |
+      (vget_lane_u8(vbits, 6) << 6) |
+      (vget_lane_u8(vbits, 7) << 7));
 }
 
 /* Z-buffer Comparator — NEON

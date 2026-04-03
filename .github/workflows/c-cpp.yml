@@ -42,6 +42,8 @@ jobs:
           - displayTargetName: 'Windows x86_64 (MSYS2)'
             artifact: 'virtualjaguar_libretro.dll'
             os: windows-latest
+            cc: 'gcc'
+            cxx: 'g++'
             shell: 'msys2 {0}'
 
     name: build-${{ matrix.config.displayTargetName }}
@@ -65,10 +67,7 @@ jobs:
           make
 
     - name: Build
-      run: make -j4
-      env:
-        CC: ${{ matrix.config.cc || '' }}
-        CXX: ${{ matrix.config.cxx || '' }}
+      run: make -j4 CC=${{ matrix.config.cc }} CXX=${{ matrix.config.cxx }}
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4

@@ -12,49 +12,67 @@ jobs:
       fail-fast: false
       matrix:
         config:
-              - displayTargetName: 'Ubuntu Latest GCC'
-                artifact: 'virtualjaguar_libretro.so'
-                os: ubuntu-latest
-                build_type: 'Release'
-                cc: 'gcc'
-                cxx: 'g++'
-              - displayTargetName: 'macOS Latest Clang'
-                artifact: 'virtualjaguar_libretro.dylib'
-                os: macos-latest
-                build_type: 'Release'
-                cc: 'clang'
-                cxx: 'clang++'
-#               - displayTargetName: 'Windows Latest MinGW'
-#                 artifact: 'virtualjaguar_libretro.so'
-#                 os: windows-latest
-#                 build_type: 'Release'
-#                 cc: 'gcc'
-#                 cxx: 'g++'
+          # Linux
+          - displayTargetName: 'Linux x86_64 (GCC)'
+            artifact: 'virtualjaguar_libretro.so'
+            os: ubuntu-latest
+            cc: 'gcc'
+            cxx: 'g++'
 
-    name: build-${{matrix.config.os}}
+          - displayTargetName: 'Linux x86_64 (Clang)'
+            artifact: 'virtualjaguar_libretro.so'
+            os: ubuntu-latest
+            cc: 'clang'
+            cxx: 'clang++'
+
+          - displayTargetName: 'Linux aarch64'
+            artifact: 'virtualjaguar_libretro.so'
+            os: ubuntu-24.04-arm
+            cc: 'gcc'
+            cxx: 'g++'
+
+          # macOS
+          - displayTargetName: 'macOS arm64 (Clang)'
+            artifact: 'virtualjaguar_libretro.dylib'
+            os: macos-latest
+            cc: 'clang'
+            cxx: 'clang++'
+
+          # Windows
+          - displayTargetName: 'Windows x86_64 (MSYS2)'
+            artifact: 'virtualjaguar_libretro.dll'
+            os: windows-latest
+            shell: 'msys2 {0}'
+
+    name: build-${{ matrix.config.displayTargetName }}
     runs-on: ${{ matrix.config.os }}
-    
+
+    defaults:
+      run:
+        shell: ${{ matrix.config.shell || 'bash' }}
+
     steps:
     - uses: actions/checkout@v4
-    - name: Add Msys64 to PATH
-      if: matrix.config.os == 'windows-latest'
-      run: |
-        echo "/c/msys64/mingw64/bin" >> $GITHUB_PATH 
-        echo "/c/msys64/usr/bin" >> $GITHUB_PATH 
-      shell: bash
-    - name: make
+
+    - name: Set up MSYS2
+      if: runner.os == 'Windows'
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: false
+        install: >-
+          mingw-w64-x86_64-gcc
+          make
+
+    - name: Build
       run: make -j4
+      env:
+        CC: ${{ matrix.config.cc || '' }}
+        CXX: ${{ matrix.config.cxx || '' }}
 
-#     - name: Upload the artifacts
-#       uses: skx/github-action-publish-binaries@master
-#       env:
-#         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#       with:
-#         args: ${{ matrix.config.artifact }}
-
-    - name: upload artifacts
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: core-${{ matrix.config.os }}
+        name: ${{ matrix.config.displayTargetName }}
         path: ${{ matrix.config.artifact }}
         if-no-files-found: error

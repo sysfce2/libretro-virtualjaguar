@@ -1,0 +1,63 @@
+name: Regression Tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+            core: virtualjaguar_libretro.so
+
+          - os: ubuntu-24.04-arm
+            cc: gcc
+            cxx: g++
+            core: virtualjaguar_libretro.so
+
+          - os: macos-latest
+            cc: clang
+            cxx: clang++
+            core: virtualjaguar_libretro.dylib
+
+    name: regression-${{ matrix.config.os }}
+    runs-on: ${{ matrix.config.os }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Cache miniretro
+      id: cache-miniretro
+      uses: actions/cache@v4
+      with:
+        path: miniretro-bin
+        key: miniretro-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/regression-test.yml') }}
+
+    - name: Build miniretro
+      if: steps.cache-miniretro.outputs.cache-hit != 'true'
+      run: |
+        git clone --depth 1 https://github.com/davidgfnet/miniretro.git /tmp/miniretro-src
+        LDFLAGS="-ldl"
+        if [ "$(uname -s)" = "Darwin" ]; then LDFLAGS=""; fi
+        ${{ matrix.config.cxx }} -O2 -Wall -Wno-deprecated-declarations -Wno-unused-result \
+          -o miniretro-bin \
+          /tmp/miniretro-src/miniretro.cc \
+          /tmp/miniretro-src/util.cc \
+          /tmp/miniretro-src/loader.cc \
+          $LDFLAGS
+
+    - name: Build core
+      run: make -j4 CC=${{ matrix.config.cc }} CXX=${{ matrix.config.cxx }}
+
+    - name: Run regression tests
+      run: |
+        export MINIRETRO_BIN="$(pwd)/miniretro-bin"
+        chmod +x "${MINIRETRO_BIN}"
+        ./test/regression_test.sh ./${{ matrix.config.core }}

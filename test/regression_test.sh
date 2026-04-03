@@ -17,8 +17,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORK_DIR="$(mktemp -d)"
 BASELINE_DIR="${SCRIPT_DIR}/baselines"
 ROM_DIR="${SCRIPT_DIR}/roms"
-FRAMES=60
-DUMP_EVERY=10
+# 600 frames (~10 seconds at 60fps) to get past BIOS boot
+FRAMES=600
+DUMP_EVERY=100
 
 trap 'rm -rf "${WORK_DIR}"' EXIT
 
@@ -71,12 +72,13 @@ for rom in "${ROM_DIR}"/*.j64 "${ROM_DIR}"/*.rom; do
 
     echo "==> Testing: ${rom_name} (${FRAMES} frames)"
 
-    # Run the core, dump screenshots periodically
+    # Run the core headless. --no-alarm disables per-frame timeout
+    # since some Jaguar frames are slow (boot, complex rendering).
     "${MINIRETRO_BIN}" \
         --core "${CORE}" --rom "${rom}" \
         --output "${out_dir}" --system "${out_dir}" \
         --frames "${FRAMES}" --dump-frames-every "${DUMP_EVERY}" \
-        --timeout 60 2>&1 | head -20 || true
+        --no-alarm 2>&1 | head -20 || true
 
     # Use the last dumped screenshot for comparison
     frame_file=$(find "${out_dir}" -name "screenshot*.png" 2>/dev/null | sort | tail -1)

@@ -16,10 +16,14 @@
 #include "eeprom.h"
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>								// For memset
 
 uint16_t eeprom_ram[64];
-uint16_t cdromEEPROM[64];
+
+/* Callback to sync the save buffer when EEPROM is modified.
+ * Set by libretro.c to keep RETRO_MEMORY_SAVE_RAM up to date. */
+void (*eeprom_dirty_cb)(void) = NULL;
 
 // Private function prototypes
 static void EEPROMSave(void);
@@ -45,31 +49,49 @@ static uint16_t jerry_writes_enabled = 0;
 static uint16_t jerry_ee_direct_jump = 0;
 
 
+static bool eeprom_initialized = false;
+
 void EepromInit(void)
 {
-   /* EEPROM data is now loaded/saved by the frontend via
-    * retro_get_memory_data(RETRO_MEMORY_SAVE_RAM). No file I/O here. */
+   /* On first init (power-on), fill EEPROM with 0xFF (blank state).
+    * The frontend will overwrite this via RETRO_MEMORY_SAVE_RAM
+    * before the first retro_run() if a save file exists. */
+   if (!eeprom_initialized)
+   {
+      memset(eeprom_ram, 0xFF, 64 * sizeof(uint16_t));
+      eeprom_initialized = true;
+   }
 }
 
 
 void EepromReset(void)
 {
-   /* Fill with 0xFF (blank EEPROM state). If the frontend has
-    * previously saved data, it will overwrite this via the
-    * RETRO_MEMORY_SAVE_RAM interface before the first frame. */
-   memset(eeprom_ram, 0xFF, 64 * sizeof(uint16_t));
-   memset(cdromEEPROM, 0xFF, 64 * sizeof(uint16_t));
+   /* Preserve EEPROM contents across soft resets — save data must
+    * survive retro_reset(). Only the state machine is reset. */
+   jerry_ee_state = EE_STATE_START;
+   jerry_ee_op = 0;
+   jerry_ee_rstate = 0;
+   jerry_ee_address_data = 0;
+   jerry_ee_address_cnt = 6;
+   jerry_ee_data = 0;
+   jerry_ee_data_cnt = 16;
+   jerry_writes_enabled = 0;
+   jerry_ee_direct_jump = 0;
 }
 
 
 void EepromDone(void)
 {
+   eeprom_initialized = false;
 }
 
 
 static void EEPROMSave(void)
 {
-   /* No-op: the frontend persists SRAM via retro_get_memory_data. */
+   /* Notify libretro.c to sync the save buffer so frontends that
+    * cache the RETRO_MEMORY_SAVE_RAM pointer see fresh data. */
+   if (eeprom_dirty_cb)
+      eeprom_dirty_cb();
 }
 
 

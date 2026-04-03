@@ -31,20 +31,21 @@ int game_width               = 0;
 int game_height              = 0;
 
 extern uint16_t eeprom_ram[64];
-extern uint16_t cdromEEPROM[64];
 extern uint8_t mtMem[0x20000];
 extern uint32_t jaguarMainROMCRC32;
+extern void (*eeprom_dirty_cb)(void);
 
-/* Combined save buffer for RETRO_MEMORY_SAVE_RAM.
- * Layout: [cart EEPROM 128 bytes][CDROM EEPROM 128 bytes]
- * For Memory Track cart (CRC 0xFDF37F47): mtMem is used directly (128K).
+/* Save buffer for RETRO_MEMORY_SAVE_RAM.
+ * Regular carts: 128 bytes (64 x 16-bit EEPROM words, big-endian packed).
+ * Memory Track cart (CRC 0xFDF37F47): mtMem is used directly (128K).
  *
- * EEPROM data is stored big-endian on disk (high byte first per 16-bit word)
- * to match the Jaguar's native byte order. This is handled by pack/unpack
- * functions so the in-memory uint16_t arrays work on any host. */
-#define EEPROM_SAVE_SIZE 256  /* 128 bytes cart + 128 bytes CDROM */
+ * The save buffer is kept in sync on every EEPROM write via eeprom_dirty_cb,
+ * so frontends that cache the pointer always see current data. */
+#define EEPROM_SAVE_SIZE 128  /* 64 x 16-bit words, big-endian */
 #define MT_SAVE_SIZE     0x20000  /* 128K Memory Track */
 static uint8_t eeprom_save_buf[EEPROM_SAVE_SIZE];
+static void eeprom_pack_save_buf(void);
+static void eeprom_unpack_save_buf(void);
 
 static retro_video_refresh_t video_cb;
 static retro_input_poll_t input_poll_cb;
@@ -976,6 +977,9 @@ bool retro_load_game(const struct retro_game_info *info)
 
    check_variables();
 
+   /* Register EEPROM dirty callback so the save buffer stays in sync */
+   eeprom_dirty_cb = eeprom_pack_save_buf;
+
    JaguarInit();                                             // set up hardware
    memcpy(jagMemSpace + 0xE00000,
          ((vjs.biosType == BT_K_SERIES) ? jaguarBootROM : jaguarBootROM2),
@@ -1031,6 +1035,9 @@ unsigned retro_api_version(void)
 
 /* Pack EEPROM uint16_t arrays into the save buffer (big-endian).
  * Called before the frontend reads save data. */
+/* Pack eeprom_ram[] into the save buffer (big-endian byte order).
+ * Called on every EEPROM write via eeprom_dirty_cb so the buffer
+ * is always up-to-date for frontends that cache the pointer. */
 static void eeprom_pack_save_buf(void)
 {
    unsigned i;
@@ -1039,24 +1046,16 @@ static void eeprom_pack_save_buf(void)
       eeprom_save_buf[(i * 2) + 0] = eeprom_ram[i] >> 8;
       eeprom_save_buf[(i * 2) + 1] = eeprom_ram[i] & 0xFF;
    }
-   for (i = 0; i < 64; i++)
-   {
-      eeprom_save_buf[128 + (i * 2) + 0] = cdromEEPROM[i] >> 8;
-      eeprom_save_buf[128 + (i * 2) + 1] = cdromEEPROM[i] & 0xFF;
-   }
 }
 
-/* Unpack the save buffer back into EEPROM uint16_t arrays.
- * Called after the frontend loads save data. */
+/* Unpack the save buffer back into eeprom_ram[].
+ * Called once after the frontend loads .srm data. */
 static void eeprom_unpack_save_buf(void)
 {
    unsigned i;
    for (i = 0; i < 64; i++)
       eeprom_ram[i] = ((uint16_t)eeprom_save_buf[(i * 2) + 0] << 8)
                     | eeprom_save_buf[(i * 2) + 1];
-   for (i = 0; i < 64; i++)
-      cdromEEPROM[i] = ((uint16_t)eeprom_save_buf[128 + (i * 2) + 0] << 8)
-                      | eeprom_save_buf[128 + (i * 2) + 1];
 }
 
 void *retro_get_memory_data(unsigned type)
@@ -1068,8 +1067,7 @@ void *retro_get_memory_data(unsigned type)
       /* Memory Track cart uses 128K NVRAM directly */
       if (jaguarMainROMCRC32 == 0xFDF37F47)
          return mtMem;
-      /* Regular carts: pack EEPROM into endian-safe buffer */
-      eeprom_pack_save_buf();
+      /* Regular carts: return the pre-packed save buffer */
       return eeprom_save_buf;
    }
    return NULL;

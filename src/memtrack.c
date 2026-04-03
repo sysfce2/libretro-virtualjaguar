@@ -32,6 +32,7 @@ enum { MT_IDLE, MT_PHASE1, MT_PHASE2 };
 uint8_t mtMem[0x20000];
 uint8_t mtCommand = MT_NONE;
 uint8_t mtState = MT_IDLE;
+static int mt_initialized = 0;
 
 // Private function prototypes
 void MTStateMachine(uint8_t reg, uint16_t data);
@@ -39,22 +40,29 @@ void MTStateMachine(uint8_t reg, uint16_t data);
 
 void MTInit(void)
 {
-	/* Memory Track data is now loaded/saved by the frontend via
-	 * retro_get_memory_data(RETRO_MEMORY_SAVE_RAM). No file I/O here. */
+	/* On first init (power-on), fill with 0xFF (blank NVRAM state).
+	 * The frontend will overwrite this via RETRO_MEMORY_SAVE_RAM
+	 * before the first retro_run() if a save file exists. */
+	if (!mt_initialized)
+	{
+		memset(mtMem, 0xFF, 0x20000);
+		mt_initialized = 1;
+	}
 }
 
 
 void MTReset(void)
 {
-	/* Fill with 0xFF (blank EEPROM state). If the frontend has
-	 * previously saved data, it will overwrite this via the
-	 * RETRO_MEMORY_SAVE_RAM interface before the first frame. */
-	memset(mtMem, 0xFF, 0x20000);
+	/* Preserve Memory Track contents across soft resets.
+	 * Only reset the command state machine. */
+	mtCommand = MT_NONE;
+	mtState = MT_IDLE;
 }
 
 
 void MTDone(void)
 {
+	mt_initialized = 0;
 }
 
 

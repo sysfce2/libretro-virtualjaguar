@@ -1,0 +1,75 @@
+name: Regression Tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+            core: virtualjaguar_libretro.so
+            platform: Linux-x86_64
+
+          - os: ubuntu-24.04-arm
+            cc: gcc
+            cxx: g++
+            core: virtualjaguar_libretro.so
+            platform: Linux-aarch64
+
+          - os: macos-latest
+            cc: clang
+            cxx: clang++
+            core: virtualjaguar_libretro.dylib
+            platform: Darwin-arm64
+
+    name: regression-${{ matrix.config.platform }}
+    runs-on: ${{ matrix.config.os }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Cache miniretro
+      id: cache-miniretro
+      uses: actions/cache@v4
+      with:
+        path: /tmp/miniretro-bin
+        key: miniretro-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/regression-test.yml') }}
+
+    - name: Build miniretro
+      if: steps.cache-miniretro.outputs.cache-hit != 'true'
+      run: |
+        git clone --depth 1 https://github.com/davidgfnet/miniretro.git /tmp/miniretro-src
+        LDFLAGS="-ldl"
+        if [ "$(uname -s)" = "Darwin" ]; then LDFLAGS=""; fi
+        ${{ matrix.config.cxx }} -O2 -Wall -Wno-deprecated-declarations \
+          -o /tmp/miniretro-bin \
+          /tmp/miniretro-src/miniretro.cc \
+          /tmp/miniretro-src/util.cc \
+          /tmp/miniretro-src/loader.cc \
+          $LDFLAGS
+
+    - name: Build core
+      run: make -j4 CC=${{ matrix.config.cc }} CXX=${{ matrix.config.cxx }}
+
+    - name: Run regression tests
+      run: |
+        # Use pre-built miniretro from cache instead of rebuilding
+        export MINIRETRO_BIN=/tmp/miniretro-bin
+        chmod +x "${MINIRETRO_BIN}"
+        ./test/regression_test.sh ./${{ matrix.config.core }} ${{ matrix.config.platform }}
+
+    - name: Upload frame dumps
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: regression-frames-${{ matrix.config.platform }}
+        path: /tmp/*/output/
+        if-no-files-found: ignore

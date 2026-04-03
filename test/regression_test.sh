@@ -160,9 +160,85 @@ for rom in "${ROM_DIR}"/*.j64 "${ROM_DIR}"/*.rom; do
         fi
     else
         echo "   NEW: ${rom_name} — no baseline yet"
-        echo "   To create: cp ${frame_file} ${baseline_png}"
+        echo "   To create: cp \"${frame_file}\" \"${baseline_png}\""
         NEW=$((NEW + 1))
         SUMMARY="${SUMMARY}| ${rom_name} | :new: NEW | no baseline | - |\n"
+    fi
+done
+
+# --- Helper: run ROM and return last screenshot path ---
+run_and_get_frame() {
+    local out_dir="$1" envvar_args="$2"
+    shift 2
+    # shellcheck disable=SC2086
+    "${MINIRETRO_BIN}" \
+        --core "${CORE}" --rom "$1" \
+        --output "${out_dir}" --system "${out_dir}" \
+        --frames 300 --dump-frames-every 100 \
+        --no-alarm ${envvar_args} >/dev/null 2>&1 || true
+    find "${out_dir}" -name "screenshot*.png" 2>/dev/null | sort | tail -1
+}
+
+# --- Determinism test: run each ROM twice, verify identical output ---
+# Validates that emulation is fully deterministic (no rand() in hot paths).
+echo ""
+echo "==> Running determinism check..."
+for rom in "${ROM_DIR}"/*.j64 "${ROM_DIR}"/*.rom; do
+    [ -f "${rom}" ] || continue
+    rom_name="$(basename "${rom}" | sed 's/\.[^.]*$//')"
+    det_dir1="${WORK_DIR}/det1/${rom_name}"
+    det_dir2="${WORK_DIR}/det2/${rom_name}"
+    mkdir -p "${det_dir1}" "${det_dir2}"
+
+    frame1=$(run_and_get_frame "${det_dir1}" "" "${rom}")
+    frame2=$(run_and_get_frame "${det_dir2}" "" "${rom}")
+
+    if [ -n "${frame1}" ] && [ -n "${frame2}" ]; then
+        if cmp -s "${frame1}" "${frame2}"; then
+            echo "   PASS: ${rom_name} determinism (identical across runs)"
+            PASS=$((PASS + 1))
+            SUMMARY="${SUMMARY}| ${rom_name} (determinism) | :white_check_mark: PASS | identical across runs | - |\n"
+        else
+            echo "   FAIL: ${rom_name} determinism (output differs between runs)"
+            cp "${frame1}" "${DIFF_DIR}/${rom_name}_det_run1.png"
+            cp "${frame2}" "${DIFF_DIR}/${rom_name}_det_run2.png"
+            FAIL=$((FAIL + 1))
+            SUMMARY="${SUMMARY}| ${rom_name} (determinism) | :x: FAIL | non-deterministic output | See artifacts |\n"
+        fi
+    else
+        echo "   SKIP: ${rom_name} determinism (no frames produced)"
+    fi
+done
+
+# --- Frameskip test: verify core options don't affect emulation output ---
+# With frameskip, video_cb receives NULL on skipped frames but the
+# emulation still runs identically. The last rendered frame should match.
+echo ""
+echo "==> Running frameskip invariance check..."
+for rom in "${ROM_DIR}"/*.j64 "${ROM_DIR}"/*.rom; do
+    [ -f "${rom}" ] || continue
+    rom_name="$(basename "${rom}" | sed 's/\.[^.]*$//')"
+    fs0_dir="${WORK_DIR}/fs0/${rom_name}"
+    fs3_dir="${WORK_DIR}/fs3/${rom_name}"
+    mkdir -p "${fs0_dir}" "${fs3_dir}"
+
+    frame_fs0=$(run_and_get_frame "${fs0_dir}" "" "${rom}")
+    frame_fs3=$(run_and_get_frame "${fs3_dir}" "--envvar virtualjaguar_frameskip=3" "${rom}")
+
+    if [ -n "${frame_fs0}" ] && [ -n "${frame_fs3}" ]; then
+        if cmp -s "${frame_fs0}" "${frame_fs3}"; then
+            echo "   PASS: ${rom_name} frameskip invariance (skip=0 matches skip=3)"
+            PASS=$((PASS + 1))
+            SUMMARY="${SUMMARY}| ${rom_name} (frameskip) | :white_check_mark: PASS | skip=0 matches skip=3 | - |\n"
+        else
+            echo "   FAIL: ${rom_name} frameskip invariance (output differs with frameskip)"
+            cp "${frame_fs0}" "${DIFF_DIR}/${rom_name}_fs0.png"
+            cp "${frame_fs3}" "${DIFF_DIR}/${rom_name}_fs3.png"
+            FAIL=$((FAIL + 1))
+            SUMMARY="${SUMMARY}| ${rom_name} (frameskip) | :x: FAIL | frameskip changes output | See artifacts |\n"
+        fi
+    else
+        echo "   SKIP: ${rom_name} frameskip (no frames produced)"
     fi
 done
 
@@ -175,7 +251,7 @@ cat > "${DIFF_DIR}/summary.md" <<EOSUMMARY
 
 | ROM | Status | Details | Diff |
 |-----|--------|---------|------|
-$(echo -e "${SUMMARY}")
+$(printf '%b' "${SUMMARY}")
 
 **Platform:** $(uname -s) $(uname -m)
 EOSUMMARY

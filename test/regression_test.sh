@@ -215,6 +215,8 @@ done
 # --- Frameskip test: verify core options don't affect emulation output ---
 # With frameskip, video_cb receives NULL on skipped frames but the
 # emulation still runs identically. The last rendered frame should match.
+# NOTE: requires the virtualjaguar_frameskip core option (PR #96).
+# Without it, both runs use default config, so the test trivially passes.
 echo ""
 echo "==> Running frameskip invariance check..."
 for rom in "${ROM_DIR}"/*.j64 "${ROM_DIR}"/*.rom; do

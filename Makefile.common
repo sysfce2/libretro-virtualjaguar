@@ -48,6 +48,34 @@ SOURCES_C :=  \
 	$(CORE_DIR)/src/universalhdr.c \
 	$(CORE_DIR)/src/wavetable.c
 
+# SIMD-accelerated blitter operations: select arch-specific implementation.
+# Default to portable scalar fallback.
+BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_scalar.c
+
+# x86/x64: use SSE2 (baseline for all x86_64, available since Pentium 4)
+ifneq (,$(filter x86_64 x86 i686 i386,$(shell uname -m 2>/dev/null)))
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
+endif
+# MSYS2/MinGW on x86_64
+ifneq (,$(filter MINGW64%,$(MSYSTEM)))
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
+endif
+
+# ARM64 (AArch64): NEON is always available
+ifneq (,$(filter aarch64 arm64,$(shell uname -m 2>/dev/null)))
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_neon.c
+endif
+# iOS/tvOS ARM64 cross-compilation
+ifneq (,$(filter ios-arm64 tvos-arm64,$(platform)))
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_neon.c
+endif
+# ARMv7 with NEON (set by Makefile for classic_armv7 targets)
+ifeq ($(HAVE_NEON), 1)
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_neon.c
+endif
+
+SOURCES_C += $(BLITTER_SIMD_SRC)
+
 ifneq ($(STATIC_LINKING), 1)
 SOURCES_C += \
 	     $(LIBRETRO_COMM_DIR)/compat/compat_strcasestr.c \

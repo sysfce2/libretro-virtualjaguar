@@ -21,6 +21,7 @@
 //
 
 #include "blitter.h"
+#include "blitter_simd.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -2833,12 +2834,7 @@ Patdhi		:= JOIN (patdhi, patd[32..63]);*/
 
 /*Lfu		:= LFU (lfu[0..1], srcdlo, srcdhi, dstdlo, dstdhi, lfu_func[0..3]);*/
 ////////////////////////////////////// C++ CODE //////////////////////////////////////
-	uint64_t funcmask[2] = { 0, 0xFFFFFFFFFFFFFFFFLL };
-	uint64_t func0 = funcmask[lfu_func & 0x01];
-	uint64_t func1 = funcmask[(lfu_func >> 1) & 0x01];
-	uint64_t func2 = funcmask[(lfu_func >> 2) & 0x01];
-	uint64_t func3 = funcmask[(lfu_func >> 3) & 0x01];
-	uint64_t lfu = (~srcd & ~dstd & func0) | (~srcd & dstd & func1) | (srcd & ~dstd & func2) | (srcd & dstd & func3);
+	uint64_t lfu = blitter_simd_ops.lfu(srcd, dstd, lfu_func);
    bool mir_bit, mir_byte;
    uint16_t masku;
    uint8_t e_coarse, e_fine;
@@ -2850,14 +2846,12 @@ Patdhi		:= JOIN (patdhi, patd[32..63]);*/
 	uint8_t dech38el[2][8] = { { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 },
 		{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } };
    int en;
-   uint64_t cmpd;
 	uint8_t dbinht;
    uint16_t addq[4];
    uint8_t initcin[4] = { 0, 0, 0, 0 };
    uint16_t mask;
    uint64_t dmux[4];
    uint64_t ddat;
-	uint64_t zwdata;
 //////////////////////////////////////////////////////////////////////////////////////
 
 // Increment and Step Registers
@@ -2873,25 +2867,7 @@ Zstep		:= JOIN (zstep, zstep[0..31]);*/
 
 /*Datacomp	:= DATACOMP (dcomp[0..7], cmpdst, dstdlo, dstdhi, patdlo, patdhi, srcdlo, srcdhi);*/
 ////////////////////////////////////// C++ CODE //////////////////////////////////////
-	*dcomp = 0;
-	cmpd = *patd ^ (cmpdst ? dstd : srcd);
-
-	if ((cmpd & 0x00000000000000FFLL) == 0)
-		*dcomp |= 0x01u;
-	if ((cmpd & 0x000000000000FF00LL) == 0)
-		*dcomp |= 0x02u;
-	if ((cmpd & 0x0000000000FF0000LL) == 0)
-		*dcomp |= 0x04u;
-	if ((cmpd & 0x00000000FF000000LL) == 0)
-		*dcomp |= 0x08u;
-	if ((cmpd & 0x000000FF00000000LL) == 0)
-		*dcomp |= 0x10u;
-	if ((cmpd & 0x0000FF0000000000LL) == 0)
-		*dcomp |= 0x20u;
-	if ((cmpd & 0x00FF000000000000LL) == 0)
-		*dcomp |= 0x40u;
-	if ((cmpd & 0xFF00000000000000LL) == 0)
-		*dcomp |= 0x80u;
+	*dcomp = blitter_simd_ops.dcomp(*patd, srcd, dstd, cmpdst);
 //////////////////////////////////////////////////////////////////////////////////////
 
 // Zed comparator for Z-buffer operations
@@ -2907,27 +2883,7 @@ Zstep		:= JOIN (zstep, zstep[0..31]);*/
 with srcshift bits 4 & 5 selecting the start position
 */
 //So... basically what we have here is:
-	*zcomp = 0;
-
-	if ((((*srcz & 0x000000000000FFFFLL) < (dstz & 0x000000000000FFFFLL)) && (zmode & 0x01))
-		|| (((*srcz & 0x000000000000FFFFLL) == (dstz & 0x000000000000FFFFLL)) && (zmode & 0x02))
-		|| (((*srcz & 0x000000000000FFFFLL) > (dstz & 0x000000000000FFFFLL)) && (zmode & 0x04)))
-		*zcomp |= 0x01u;
-
-	if ((((*srcz & 0x00000000FFFF0000LL) < (dstz & 0x00000000FFFF0000LL)) && (zmode & 0x01))
-		|| (((*srcz & 0x00000000FFFF0000LL) == (dstz & 0x00000000FFFF0000LL)) && (zmode & 0x02))
-		|| (((*srcz & 0x00000000FFFF0000LL) > (dstz & 0x00000000FFFF0000LL)) && (zmode & 0x04)))
-		*zcomp |= 0x02u;
-
-	if ((((*srcz & 0x0000FFFF00000000LL) < (dstz & 0x0000FFFF00000000LL)) && (zmode & 0x01))
-		|| (((*srcz & 0x0000FFFF00000000LL) == (dstz & 0x0000FFFF00000000LL)) && (zmode & 0x02))
-		|| (((*srcz & 0x0000FFFF00000000LL) > (dstz & 0x0000FFFF00000000LL)) && (zmode & 0x04)))
-		*zcomp |= 0x04u;
-
-	if ((((*srcz & 0xFFFF000000000000LL) < (dstz & 0xFFFF000000000000LL)) && (zmode & 0x01))
-		|| (((*srcz & 0xFFFF000000000000LL) == (dstz & 0xFFFF000000000000LL)) && (zmode & 0x02))
-		|| (((*srcz & 0xFFFF000000000000LL) > (dstz & 0xFFFF000000000000LL)) && (zmode & 0x04)))
-		*zcomp |= 0x08u;
+	*zcomp = blitter_simd_ops.zcomp(*srcz, dstz, zmode);
 
 //TEMP, TO TEST IF ZCOMP IS THE CULPRIT...
 //Nope, this is NOT the problem...
@@ -3159,25 +3115,8 @@ Dat[40-47]	:= MX4 (dat[40-47], dstdhi{8-15},  ddathi{8-15},  dstzhi{8-15},  srcz
 Dat[48-55]	:= MX4 (dat[48-55], dstdhi{16-23}, ddathi{16-23}, dstzhi{16-23}, srczhi{16-23}, mask[13],  zed_selb[1]);
 Dat[56-63]	:= MX4 (dat[56-63], dstdhi{24-31}, ddathi{24-31}, dstzhi{24-31}, srczhi{24-31}, mask[14],  zed_selb[1]);*/
 ////////////////////////////////////// C++ CODE //////////////////////////////////////
-	*wdata = ((ddat & mask) | (dstd & ~mask)) & 0x00000000000000FFLL;
-	*wdata |= ((mask & 0x0100) ? ddat : dstd) & 0x000000000000FF00LL;
-	*wdata |= ((mask & 0x0200) ? ddat : dstd) & 0x0000000000FF0000LL;
-	*wdata |= ((mask & 0x0400) ? ddat : dstd) & 0x00000000FF000000LL;
-	*wdata |= ((mask & 0x0800) ? ddat : dstd) & 0x000000FF00000000LL;
-	*wdata |= ((mask & 0x1000) ? ddat : dstd) & 0x0000FF0000000000LL;
-	*wdata |= ((mask & 0x2000) ? ddat : dstd) & 0x00FF000000000000LL;
-	*wdata |= ((mask & 0x4000) ? ddat : dstd) & 0xFF00000000000000LL;
-
-//This is a crappy way of handling this, but it should work for now...
-	zwdata = ((*srcz & mask) | (dstz & ~mask)) & 0x00000000000000FFLL;
-	zwdata |= ((mask & 0x0100) ? *srcz : dstz) & 0x000000000000FF00LL;
-	zwdata |= ((mask & 0x0200) ? *srcz : dstz) & 0x0000000000FF0000LL;
-	zwdata |= ((mask & 0x0400) ? *srcz : dstz) & 0x00000000FF000000LL;
-	zwdata |= ((mask & 0x0800) ? *srcz : dstz) & 0x000000FF00000000LL;
-	zwdata |= ((mask & 0x1000) ? *srcz : dstz) & 0x0000FF0000000000LL;
-	zwdata |= ((mask & 0x2000) ? *srcz : dstz) & 0x00FF000000000000LL;
-	zwdata |= ((mask & 0x4000) ? *srcz : dstz) & 0xFF00000000000000LL;
-	*srcz = zwdata;
+	*wdata = blitter_simd_ops.byte_merge(ddat, dstd, mask);
+	*srcz = blitter_simd_ops.byte_merge(*srcz, dstz, mask);
 //////////////////////////////////////////////////////////////////////////////////////
 
 /*Data_enab[0-1]	:= BUF8 (data_enab[0-1], data_ena);

@@ -347,10 +347,16 @@ static void check_variables(void)
 
    for (i = 0; i < 2; i++)
    {
+      int j;
       char base[20];
       char key[64];
       size_t _len        = strlcpy(base, "virtualjaguar_p", sizeof(base));
       snprintf(base + _len, sizeof(base) - _len, "%d", i + 1);
+
+      /* Initialize all retropad mappings to BUTTON_NONE so unmapped
+       * entries don't accidentally trigger BUTTON_U (index 0). */
+      for (j = 0; j < 24; j++)
+         jag_retropad[i][j] = BUTTON_NONE;
 
       strlcpy(key, base, sizeof(key));
       strlcat(key, "_numpad_to_kb", sizeof(key));

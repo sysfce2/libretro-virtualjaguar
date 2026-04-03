@@ -384,10 +384,6 @@ uint8_t JERRYReadByte(uint32_t offset, uint32_t who/*=UNKNOWN*/)
    //	F10038          R     xxxxxxxx xxxxxxxx   JPIT2 - timer 1 divider
    //	F1003A          R     xxxxxxxx xxxxxxxx   JPIT3 - timer 2 pre-scaler
    //	F1003C          R     xxxxxxxx xxxxxxxx   JPIT4 - timer 2 divider
-   //	F10036          R     xxxxxxxx xxxxxxxx   JPIT1 - timer 1 pre-scaler
-   //	F10038          R     xxxxxxxx xxxxxxxx   JPIT2 - timer 1 divider
-   //	F1003A          R     xxxxxxxx xxxxxxxx   JPIT3 - timer 2 pre-scaler
-   //	F1003C          R     xxxxxxxx xxxxxxxx   JPIT4 - timer 2 divider
    else if ((offset >= 0xF10036) && (offset <= 0xF1003D))
    {
       uint16_t value;
@@ -447,6 +443,7 @@ uint16_t JERRYReadWord(uint32_t offset, uint32_t who/*=UNKNOWN*/)
          case 0xF10038: return JERRYPIT1Divider;
          case 0xF1003A: return JERRYPIT2Prescaler;
          case 0xF1003C: return JERRYPIT2Divider;
+         default:       return 0;
       }
    }
    else if (offset == 0xF10020)

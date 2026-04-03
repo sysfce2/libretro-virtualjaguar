@@ -16,9 +16,9 @@ Port of the [Virtual Jaguar](http://shamusworld.gotdns.org/git/virtualjaguar) At
 ## Building
 
 ```bash
-make -j$(nproc)            # Auto-detects platform
-make -j$(nproc) DEBUG=1    # Debug build
-make platform=ios           # Cross-compile (ios, osx, unix, win, android, switch, vita, etc.)
+make -j$(getconf _NPROCESSORS_ONLN)            # Auto-detects platform
+make -j$(getconf _NPROCESSORS_ONLN) DEBUG=1    # Debug build
+make platform=ios-arm64                         # Cross-compile (ios-arm64, osx, unix, win, android, switch, vita, etc.)
 ```
 
 Output varies by platform: `.so` (Linux), `.dylib` (macOS), `.dll` (Windows).

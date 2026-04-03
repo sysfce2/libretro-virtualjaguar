@@ -9,10 +9,10 @@ Virtual Jaguar libretro core — an Atari Jaguar emulator ported to the libretro
 ## Build Commands
 
 ```bash
-make -j$(nproc)          # Build (auto-detects platform)
-make -j$(nproc) DEBUG=1  # Debug build (-O0 -g)
-make clean               # Clean build artifacts
-make platform=ios         # Cross-compile for specific platform
+make -j$(getconf _NPROCESSORS_ONLN)          # Build (auto-detects platform)
+make -j$(getconf _NPROCESSORS_ONLN) DEBUG=1  # Debug build (-O0 -g)
+make clean                                    # Clean build artifacts
+make platform=ios-arm64                       # Cross-compile for specific platform
 ```
 
 Output binary name varies by platform:

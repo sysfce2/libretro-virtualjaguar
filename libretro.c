@@ -30,7 +30,21 @@ uint32_t *videoBuffer        = NULL;
 int game_width               = 0;
 int game_height              = 0;
 
-extern uint16_t eeprom_ram[];
+extern uint16_t eeprom_ram[64];
+extern uint16_t cdromEEPROM[64];
+extern uint8_t mtMem[0x20000];
+extern uint32_t jaguarMainROMCRC32;
+
+/* Combined save buffer for RETRO_MEMORY_SAVE_RAM.
+ * Layout: [cart EEPROM 128 bytes][CDROM EEPROM 128 bytes]
+ * For Memory Track cart (CRC 0xFDF37F47): mtMem is used directly (128K).
+ *
+ * EEPROM data is stored big-endian on disk (high byte first per 16-bit word)
+ * to match the Jaguar's native byte order. This is handled by pack/unpack
+ * functions so the in-memory uint16_t arrays work on any host. */
+#define EEPROM_SAVE_SIZE 256  /* 128 bytes cart + 128 bytes CDROM */
+#define MT_SAVE_SIZE     0x20000  /* 128K Memory Track */
+static uint8_t eeprom_save_buf[EEPROM_SAVE_SIZE];
 
 static retro_video_refresh_t video_cb;
 static retro_input_poll_t input_poll_cb;
@@ -39,6 +53,7 @@ static retro_environment_t environ_cb;
 retro_audio_sample_batch_t audio_batch_cb;
 
 static bool libretro_supports_bitmasks = false;
+static bool save_data_needs_unpack = false;
 
 void retro_set_video_refresh(retro_video_refresh_t cb) { video_cb = cb; }
 void retro_set_audio_sample(retro_audio_sample_t cb) { (void)cb; }
@@ -719,25 +734,7 @@ static void update_input(void)
    }
 }
 
-static void extract_basename(char *buf, const char *path, size_t size)
-{
-   char       *ext  = NULL;
-   const char *base = strrchr(path, '/');
-   if (!base)
-      base = strrchr(path, '\\');
-   if (!base)
-      base = path;
 
-   if (*base == '\\' || *base == '/')
-      base++;
-
-   strncpy(buf, base, size - 1);
-   buf[size - 1] = '\0';
-
-   ext = strrchr(buf, '.');
-   if (ext)
-      *ext = '\0';
-}
 
 /************************************
  * libretro implementation
@@ -897,9 +894,7 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 
 bool retro_load_game(const struct retro_game_info *info)
 {
-   char slash;
    unsigned i;
-   const char *save_dir = NULL;
    enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_XRGB8888;
 
    struct retro_input_descriptor desc[] = {
@@ -981,32 +976,6 @@ bool retro_load_game(const struct retro_game_info *info)
 
    check_variables();
 
-   // Get eeprom path info
-   // > Handle Windows nonsense...
-#if defined(_WIN32)
-   slash = '\\';
-#else
-   slash = '/';
-#endif
-   // > Get save path
-   vjs.EEPROMPath[0] = '\0';
-   if (environ_cb(RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY, &save_dir) && save_dir)
-   {
-      if (strlen(save_dir) > 0)
-      {
-         sprintf(vjs.EEPROMPath, "%s%c", save_dir, slash);
-      }
-   }
-   // > Get ROM name
-   if (info->path != NULL)
-   {
-      extract_basename(vjs.romName, info->path, sizeof(vjs.romName));
-   }
-   else
-   {
-      vjs.romName[0] = '\0';
-   }
-
    JaguarInit();                                             // set up hardware
    memcpy(jagMemSpace + 0xE00000,
          ((vjs.biosType == BT_K_SERIES) ? jaguarBootROM : jaguarBootROM2),
@@ -1022,6 +991,11 @@ bool retro_load_game(const struct retro_game_info *info)
    SET32(jaguarMainRAM, 0, 0x00200000);
    JaguarLoadFile((uint8_t*)info->data, info->size);
    JaguarReset();
+
+   /* The frontend will load .srm data into our save buffer (returned by
+    * retro_get_memory_data) after this function returns but before the
+    * first retro_run(). We unpack it on the first frame. */
+   save_data_needs_unpack = true;
 
    return true;
 }
@@ -1055,22 +1029,63 @@ unsigned retro_api_version(void)
    return RETRO_API_VERSION;
 }
 
+/* Pack EEPROM uint16_t arrays into the save buffer (big-endian).
+ * Called before the frontend reads save data. */
+static void eeprom_pack_save_buf(void)
+{
+   unsigned i;
+   for (i = 0; i < 64; i++)
+   {
+      eeprom_save_buf[(i * 2) + 0] = eeprom_ram[i] >> 8;
+      eeprom_save_buf[(i * 2) + 1] = eeprom_ram[i] & 0xFF;
+   }
+   for (i = 0; i < 64; i++)
+   {
+      eeprom_save_buf[128 + (i * 2) + 0] = cdromEEPROM[i] >> 8;
+      eeprom_save_buf[128 + (i * 2) + 1] = cdromEEPROM[i] & 0xFF;
+   }
+}
+
+/* Unpack the save buffer back into EEPROM uint16_t arrays.
+ * Called after the frontend loads save data. */
+static void eeprom_unpack_save_buf(void)
+{
+   unsigned i;
+   for (i = 0; i < 64; i++)
+      eeprom_ram[i] = ((uint16_t)eeprom_save_buf[(i * 2) + 0] << 8)
+                    | eeprom_save_buf[(i * 2) + 1];
+   for (i = 0; i < 64; i++)
+      cdromEEPROM[i] = ((uint16_t)eeprom_save_buf[128 + (i * 2) + 0] << 8)
+                      | eeprom_save_buf[128 + (i * 2) + 1];
+}
+
 void *retro_get_memory_data(unsigned type)
 {
-   if(type == RETRO_MEMORY_SYSTEM_RAM)
+   if (type == RETRO_MEMORY_SYSTEM_RAM)
       return jaguarMainRAM;
-   else if (type == RETRO_MEMORY_SAVE_RAM)
-      return eeprom_ram;
-   else return NULL;
+   if (type == RETRO_MEMORY_SAVE_RAM)
+   {
+      /* Memory Track cart uses 128K NVRAM directly */
+      if (jaguarMainROMCRC32 == 0xFDF37F47)
+         return mtMem;
+      /* Regular carts: pack EEPROM into endian-safe buffer */
+      eeprom_pack_save_buf();
+      return eeprom_save_buf;
+   }
+   return NULL;
 }
 
 size_t retro_get_memory_size(unsigned type)
 {
-   if(type == RETRO_MEMORY_SYSTEM_RAM)
+   if (type == RETRO_MEMORY_SYSTEM_RAM)
       return 0x200000;
-   else if (type == RETRO_MEMORY_SAVE_RAM)
-      return 128;
-   else return 0;
+   if (type == RETRO_MEMORY_SAVE_RAM)
+   {
+      if (jaguarMainROMCRC32 == 0xFDF37F47)
+         return MT_SAVE_SIZE;
+      return EEPROM_SAVE_SIZE;
+   }
+   return 0;
 }
 
 void retro_init(void)
@@ -1096,6 +1111,16 @@ void retro_reset(void)
 void retro_run(void)
 {
    bool updated = false;
+
+   /* On the first frame, unpack save data that the frontend loaded
+    * into our RETRO_MEMORY_SAVE_RAM buffer after retro_load_game(). */
+   if (save_data_needs_unpack)
+   {
+      save_data_needs_unpack = false;
+      if (jaguarMainROMCRC32 != 0xFDF37F47)
+         eeprom_unpack_save_buf();
+      /* Memory Track: mtMem was written directly, no unpack needed. */
+   }
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
       check_variables();

@@ -18,51 +18,14 @@
 #include <stdlib.h>
 #include <string.h>								// For memset
 
-#include <streams/file_stream.h>
-#include "settings.h"
-
-extern uint32_t jaguarMainROMCRC32;
-
 uint16_t eeprom_ram[64];
-static uint16_t cdromEEPROM[64];
+uint16_t cdromEEPROM[64];
 
 // Private function prototypes
-RFILE* rfopen(const char *path, const char *mode);
-int rfclose(RFILE* stream);
-int64_t rfwrite(void const* buffer,
-   size_t elem_size, size_t elem_count, RFILE* stream);
-int64_t rfread(void* buffer,
-   size_t elem_size, size_t elem_count, RFILE* stream);
-
 static void EEPROMSave(void);
 static void eeprom_set_di(uint32_t state);
 static void eeprom_set_cs(uint32_t state);
 static uint32_t eeprom_get_do(void);
-
-static void WriteEEPROMToFile(RFILE * file, uint16_t * ram)
-{
-   unsigned i;
-   uint8_t buffer[128];
-
-   for(i = 0; i < 64; i++)
-   {
-      buffer[(i * 2) + 0] = ram[i] >> 8;
-      buffer[(i * 2) + 1] = ram[i] & 0xFF;
-   }
-
-   rfwrite(buffer, 1, 128, file);
-}
-
-// Read/write EEPROM files to disk in an endian safe manner
-static void ReadEEPROMFromFile(RFILE *file, uint16_t * ram)
-{
-   unsigned i;
-   uint8_t buffer[128];
-   size_t ignored = rfread(buffer, 1, 128, file);
-
-   for(i = 0; i < 64; i++)
-      ram[i] = (buffer[(i * 2) + 0] << 8) | buffer[(i * 2) + 1];
-}
 
 enum { EE_STATE_START = 1, EE_STATE_OP_A, EE_STATE_OP_B, EE_STATE_0, EE_STATE_1,
 	EE_STATE_2, EE_STATE_3, EE_STATE_0_0, EE_READ_ADDRESS, EE_STATE_0_0_0,
@@ -81,62 +44,21 @@ static uint16_t jerry_ee_data_cnt = 16;
 static uint16_t jerry_writes_enabled = 0;
 static uint16_t jerry_ee_direct_jump = 0;
 
-static char eeprom_filename[MAX_PATH];
-static char cdromEEPROMFilename[MAX_PATH];
-static bool haveEEPROM = false;
-static bool haveCDROMEEPROM = false;
-
 
 void EepromInit(void)
 {
-   RFILE * fp;
-
-   /* No need for EEPROM for the Memory Track device */
-   if (jaguarMainROMCRC32 == 0xFDF37F47)
-      return;
-   
-   /* Get EEPROM file names */
-	if (strlen(vjs.romName) > 0)
-	{
-		sprintf(eeprom_filename, "%s%s.srm", vjs.EEPROMPath, vjs.romName);
-		sprintf(cdromEEPROMFilename, "%s%s.cdrom.srm", vjs.EEPROMPath, vjs.romName);
-	}
-	else
-	{
-		// Use old CRC fallback...
-		sprintf(eeprom_filename, "%s%08X.srm", vjs.EEPROMPath, (unsigned int)jaguarMainROMCRC32);
-		sprintf(cdromEEPROMFilename, "%s%08X.cdrom.srm", vjs.EEPROMPath, (unsigned int)jaguarMainROMCRC32);
-	}
-
-	/* Handle regular cartridge EEPROM */
-	fp = rfopen(eeprom_filename, "rb");
-
-	if (fp)
-	{
-		ReadEEPROMFromFile(fp, eeprom_ram);
-		rfclose(fp);
-		haveEEPROM = true;
-	}
-
-	// Handle JagCD EEPROM
-	fp = rfopen(cdromEEPROMFilename, "rb");
-
-	if (fp)
-	{
-		ReadEEPROMFromFile(fp, cdromEEPROM);
-		rfclose(fp);
-		haveCDROMEEPROM = true;
-	}
+   /* EEPROM data is now loaded/saved by the frontend via
+    * retro_get_memory_data(RETRO_MEMORY_SAVE_RAM). No file I/O here. */
 }
 
 
 void EepromReset(void)
 {
-	if (!haveEEPROM)
-		memset(eeprom_ram, 0xFF, 64 * sizeof(uint16_t));
-
-	if (!haveCDROMEEPROM)
-		memset(cdromEEPROM, 0xFF, 64 * sizeof(uint16_t));
+   /* Fill with 0xFF (blank EEPROM state). If the frontend has
+    * previously saved data, it will overwrite this via the
+    * RETRO_MEMORY_SAVE_RAM interface before the first frame. */
+   memset(eeprom_ram, 0xFF, 64 * sizeof(uint16_t));
+   memset(cdromEEPROM, 0xFF, 64 * sizeof(uint16_t));
 }
 
 
@@ -147,23 +69,7 @@ void EepromDone(void)
 
 static void EEPROMSave(void)
 {
-	// Write out regular cartridge EEPROM data
-	RFILE * fp = rfopen(eeprom_filename, "wb");
-
-	if (fp)
-	{
-		WriteEEPROMToFile(fp, eeprom_ram);
-		rfclose(fp);
-	}
-
-	// Write out JagCD EEPROM data
-	fp = rfopen(cdromEEPROMFilename, "wb");
-
-	if (fp)
-	{
-		WriteEEPROMToFile(fp, cdromEEPROM);
-		rfclose(fp);
-	}
+   /* No-op: the frontend persists SRAM via retro_get_memory_data. */
 }
 
 

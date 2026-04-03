@@ -25,19 +25,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include "settings.h"
-
-#include <libretro.h>
-#include <streams/file_stream.h>
-
-RFILE* rfopen(const char *path, const char *mode);
-int64_t rfread(void* buffer,
-   size_t elem_size, size_t elem_count, RFILE* stream);
-int rfclose(RFILE* stream);
-int64_t rfwrite(void const* buffer,
-   size_t elem_size, size_t elem_count, RFILE* stream);
-
-#define MEMTRACK_FILENAME	"memtrack.eeprom"
 
 enum { MT_NONE, MT_PROD_ID, MT_RESET, MT_WRITE_ENABLE };
 enum { MT_IDLE, MT_PHASE1, MT_PHASE2 };
@@ -45,56 +32,29 @@ enum { MT_IDLE, MT_PHASE1, MT_PHASE2 };
 uint8_t mtMem[0x20000];
 uint8_t mtCommand = MT_NONE;
 uint8_t mtState = MT_IDLE;
-bool haveMT = false;
-char mtFilename[8192];
 
 // Private function prototypes
-void MTWriteFile(void);
 void MTStateMachine(uint8_t reg, uint16_t data);
 
 
 void MTInit(void)
 {
-	RFILE *fp;
-
-	sprintf(mtFilename, "%s%s", vjs.EEPROMPath, MEMTRACK_FILENAME);
-	fp = rfopen(mtFilename, "rb");
-
-	if (fp)
-	{
-		rfread(mtMem, 1, 0x20000, fp);
-		rfclose(fp);
-		haveMT = true;
-	}
+	/* Memory Track data is now loaded/saved by the frontend via
+	 * retro_get_memory_data(RETRO_MEMORY_SAVE_RAM). No file I/O here. */
 }
 
 
 void MTReset(void)
 {
-	if (!haveMT)
-		memset(mtMem, 0xFF, 0x20000);
+	/* Fill with 0xFF (blank EEPROM state). If the frontend has
+	 * previously saved data, it will overwrite this via the
+	 * RETRO_MEMORY_SAVE_RAM interface before the first frame. */
+	memset(mtMem, 0xFF, 0x20000);
 }
 
 
 void MTDone(void)
 {
-	MTWriteFile();
-}
-
-
-void MTWriteFile(void)
-{
-	RFILE *fp;
-	if (!haveMT)
-		return;
-
-	fp = rfopen(mtFilename, "wb");
-
-	if (fp)
-	{
-		rfwrite(mtMem, 1, 0x20000, fp);
-		rfclose(fp);
-	}
 }
 
 

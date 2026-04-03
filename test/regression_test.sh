@@ -2,13 +2,14 @@
 #
 # Headless regression test for virtualjaguar-libretro
 #
-# Builds miniretro, runs test ROMs for N frames, dumps screenshots,
-# and compares the last screenshot's checksum against a known baseline.
+# Runs test ROMs via miniretro, compares screenshots against reference
+# images, and generates visual diffs on failure.
 #
 # Usage: ./test/regression_test.sh <core_path>
 # Example: ./test/regression_test.sh ./virtualjaguar_libretro.so
 #
 # Set MINIRETRO_BIN env var to skip building miniretro from source.
+# Set DIFF_DIR env var to specify where diff images are saved.
 #
 set -euo pipefail
 
@@ -17,6 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORK_DIR="$(mktemp -d)"
 BASELINE_DIR="${SCRIPT_DIR}/baselines"
 ROM_DIR="${SCRIPT_DIR}/roms"
+DIFF_DIR="${DIFF_DIR:-${WORK_DIR}/diffs}"
 # 600 frames (~10 seconds at 60fps) to get past BIOS boot
 FRAMES=600
 DUMP_EVERY=100
@@ -55,6 +57,8 @@ else
 fi
 
 echo "==> Baselines: ${BASELINE_DIR}"
+echo "==> Diff output: ${DIFF_DIR}"
+mkdir -p "${DIFF_DIR}"
 
 # --- Resolve core to absolute path ---
 CORE="$(cd "$(dirname "${CORE}")" && pwd)/$(basename "${CORE}")"
@@ -63,6 +67,7 @@ CORE="$(cd "$(dirname "${CORE}")" && pwd)/$(basename "${CORE}")"
 PASS=0
 FAIL=0
 NEW=0
+SUMMARY=""
 
 for rom in "${ROM_DIR}"/*.j64 "${ROM_DIR}"/*.rom; do
     [ -f "${rom}" ] || continue
@@ -86,40 +91,94 @@ for rom in "${ROM_DIR}"/*.j64 "${ROM_DIR}"/*.rom; do
     if [ -z "${frame_file}" ]; then
         echo "   WARNING: No frame dumped for ${rom_name}"
         FAIL=$((FAIL + 1))
+        SUMMARY="${SUMMARY}| ${rom_name} | :x: FAIL | No frame output | - |\n"
         continue
     fi
 
     echo "   Using frame: $(basename "${frame_file}")"
 
-    # Compute checksum
-    if command -v md5sum &>/dev/null; then
-        hash=$(md5sum "${frame_file}" | awk '{print $1}')
-    else
-        hash=$(md5 -q "${frame_file}")
-    fi
+    # Copy current screenshot to diff dir for reference
+    cp "${frame_file}" "${DIFF_DIR}/${rom_name}_current.png"
 
-    baseline_file="${BASELINE_DIR}/${rom_name}.md5"
+    baseline_png="${BASELINE_DIR}/${rom_name}.png"
 
-    if [ -f "${baseline_file}" ]; then
-        expected=$(cat "${baseline_file}")
-        if [ "${hash}" = "${expected}" ]; then
-            echo "   PASS: ${rom_name} (${hash})"
-            PASS=$((PASS + 1))
+    if [ -f "${baseline_png}" ]; then
+        # Compare against reference screenshot
+        if command -v compare &>/dev/null; then
+            # ImageMagick compare: generate diff image and get metric
+            set +e
+            metric_raw=$(compare -metric AE "${baseline_png}" "${frame_file}" \
+                "${DIFF_DIR}/${rom_name}_diff.png" 2>&1)
+            compare_status=$?
+            set -e
+
+            if [ "${compare_status}" -le 1 ]; then
+                # Extract just the integer pixel count (ImageMagick may output "0 (0)")
+                metric=$(printf '%s\n' "${metric_raw}" | awk 'NR==1 {print $1}')
+
+                if [[ "${metric}" =~ ^[0-9]+$ ]] && [ "${metric}" = "0" ]; then
+                    echo "   PASS: ${rom_name} (0 pixels differ)"
+                    PASS=$((PASS + 1))
+                    SUMMARY="${SUMMARY}| ${rom_name} | :white_check_mark: PASS | 0 pixels differ | - |\n"
+                    # Clean up diff artifacts on pass
+                    rm -f "${DIFF_DIR}/${rom_name}_diff.png" "${DIFF_DIR}/${rom_name}_current.png"
+                elif [[ "${metric}" =~ ^[0-9]+$ ]]; then
+                    echo "   FAIL: ${rom_name} (${metric} pixels differ)"
+                    # Also generate a side-by-side comparison
+                    if command -v montage &>/dev/null; then
+                        montage "${baseline_png}" "${frame_file}" "${DIFF_DIR}/${rom_name}_diff.png" \
+                            -tile 3x1 -geometry +4+4 -label '%f' \
+                            "${DIFF_DIR}/${rom_name}_sidebyside.png" 2>/dev/null || true
+                    fi
+                    cp "${baseline_png}" "${DIFF_DIR}/${rom_name}_expected.png"
+                    FAIL=$((FAIL + 1))
+                    SUMMARY="${SUMMARY}| ${rom_name} | :x: FAIL | ${metric} pixels differ | See artifacts |\n"
+                else
+                    echo "   FAIL: ${rom_name} (compare error: ${metric_raw})"
+                    cp "${baseline_png}" "${DIFF_DIR}/${rom_name}_expected.png"
+                    FAIL=$((FAIL + 1))
+                    SUMMARY="${SUMMARY}| ${rom_name} | :x: FAIL | compare error | See artifacts |\n"
+                fi
+            else
+                echo "   FAIL: ${rom_name} (compare failed: ${metric_raw})"
+                cp "${baseline_png}" "${DIFF_DIR}/${rom_name}_expected.png"
+                FAIL=$((FAIL + 1))
+                SUMMARY="${SUMMARY}| ${rom_name} | :x: FAIL | compare error | See artifacts |\n"
+            fi
         else
-            echo "   FAIL: ${rom_name}"
-            echo "     expected: ${expected}"
-            echo "     got:      ${hash}"
-            FAIL=$((FAIL + 1))
+            # Fallback: byte-level comparison
+            if cmp -s "${baseline_png}" "${frame_file}"; then
+                echo "   PASS: ${rom_name} (identical)"
+                PASS=$((PASS + 1))
+                SUMMARY="${SUMMARY}| ${rom_name} | :white_check_mark: PASS | identical | - |\n"
+            else
+                echo "   FAIL: ${rom_name} (screenshots differ)"
+                cp "${baseline_png}" "${DIFF_DIR}/${rom_name}_expected.png"
+                FAIL=$((FAIL + 1))
+                SUMMARY="${SUMMARY}| ${rom_name} | :x: FAIL | screenshots differ | See artifacts |\n"
+            fi
         fi
     else
-        echo "   NEW: ${rom_name} — no baseline yet (${hash})"
-        echo "   Run: echo '${hash}' > ${baseline_file}"
+        echo "   NEW: ${rom_name} — no baseline yet"
+        echo "   To create: cp ${frame_file} ${baseline_png}"
         NEW=$((NEW + 1))
+        SUMMARY="${SUMMARY}| ${rom_name} | :new: NEW | no baseline | - |\n"
     fi
 done
 
 echo ""
 echo "==> Results: ${PASS} passed, ${FAIL} failed, ${NEW} new (no baseline)"
+
+# Write summary for CI to pick up
+cat > "${DIFF_DIR}/summary.md" <<EOSUMMARY
+## Regression Test Results
+
+| ROM | Status | Details | Diff |
+|-----|--------|---------|------|
+$(echo -e "${SUMMARY}")
+
+**Platform:** $(uname -s) $(uname -m)
+EOSUMMARY
 
 if [ "${FAIL}" -gt 0 ]; then
     exit 1

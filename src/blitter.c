@@ -3427,3 +3427,129 @@ Dbinh[7]	:= NAN2 (dbinh\[7], di7t[2], phrase_mode);*/
 }
 
 #endif
+
+
+/* Save state serialization for Blitter */
+
+#include "state.h"
+
+size_t BlitterStateSave(uint8_t *buf)
+{
+   uint8_t *start = buf;
+
+   STATE_SAVE_BUF(buf, blitter_ram, sizeof(blitter_ram));
+   STATE_SAVE_VAR(buf, src);
+   STATE_SAVE_VAR(buf, dst);
+   STATE_SAVE_VAR(buf, misc);
+   STATE_SAVE_VAR(buf, a1ctl);
+   STATE_SAVE_VAR(buf, mode);
+   STATE_SAVE_VAR(buf, ity);
+   STATE_SAVE_VAR(buf, zop);
+   STATE_SAVE_VAR(buf, op);
+   STATE_SAVE_VAR(buf, ctrl);
+   STATE_SAVE_VAR(buf, a1_addr);
+   STATE_SAVE_VAR(buf, a2_addr);
+   STATE_SAVE_VAR(buf, a1_zoffs);
+   STATE_SAVE_VAR(buf, a2_zoffs);
+   STATE_SAVE_VAR(buf, xadd_a1_control);
+   STATE_SAVE_VAR(buf, xadd_a2_control);
+   STATE_SAVE_VAR(buf, a1_pitch);
+   STATE_SAVE_VAR(buf, a2_pitch);
+   STATE_SAVE_VAR(buf, n_pixels);
+   STATE_SAVE_VAR(buf, n_lines);
+   STATE_SAVE_VAR(buf, a1_x);
+   STATE_SAVE_VAR(buf, a1_y);
+   STATE_SAVE_VAR(buf, a1_width);
+   STATE_SAVE_VAR(buf, a2_x);
+   STATE_SAVE_VAR(buf, a2_y);
+   STATE_SAVE_VAR(buf, a2_width);
+   STATE_SAVE_VAR(buf, a2_mask_x);
+   STATE_SAVE_VAR(buf, a2_mask_y);
+   STATE_SAVE_VAR(buf, a1_xadd);
+   STATE_SAVE_VAR(buf, a1_yadd);
+   STATE_SAVE_VAR(buf, a2_xadd);
+   STATE_SAVE_VAR(buf, a2_yadd);
+   STATE_SAVE_VAR(buf, a1_phrase_mode);
+   STATE_SAVE_VAR(buf, a2_phrase_mode);
+   STATE_SAVE_VAR(buf, a1_step_x);
+   STATE_SAVE_VAR(buf, a1_step_y);
+   STATE_SAVE_VAR(buf, a2_step_x);
+   STATE_SAVE_VAR(buf, a2_step_y);
+   STATE_SAVE_VAR(buf, outer_loop);
+   STATE_SAVE_VAR(buf, inner_loop);
+   STATE_SAVE_VAR(buf, a2_psize);
+   STATE_SAVE_VAR(buf, a1_psize);
+   STATE_SAVE_VAR(buf, gouraud_add);
+   STATE_SAVE_BUF(buf, gd_i, sizeof(gd_i));
+   STATE_SAVE_BUF(buf, gd_c, sizeof(gd_c));
+   STATE_SAVE_VAR(buf, gd_ia);
+   STATE_SAVE_VAR(buf, gd_ca);
+   STATE_SAVE_VAR(buf, colour_index);
+   STATE_SAVE_VAR(buf, zadd);
+   STATE_SAVE_BUF(buf, z_i, sizeof(z_i));
+   STATE_SAVE_VAR(buf, a1_clip_x);
+   STATE_SAVE_VAR(buf, a1_clip_y);
+
+   return (size_t)(buf - start);
+}
+
+
+size_t BlitterStateLoad(const uint8_t *buf)
+{
+   const uint8_t *start = buf;
+
+   STATE_LOAD_BUF(buf, blitter_ram, sizeof(blitter_ram));
+   STATE_LOAD_VAR(buf, src);
+   STATE_LOAD_VAR(buf, dst);
+   STATE_LOAD_VAR(buf, misc);
+   STATE_LOAD_VAR(buf, a1ctl);
+   STATE_LOAD_VAR(buf, mode);
+   STATE_LOAD_VAR(buf, ity);
+   STATE_LOAD_VAR(buf, zop);
+   STATE_LOAD_VAR(buf, op);
+   STATE_LOAD_VAR(buf, ctrl);
+   STATE_LOAD_VAR(buf, a1_addr);
+   STATE_LOAD_VAR(buf, a2_addr);
+   STATE_LOAD_VAR(buf, a1_zoffs);
+   STATE_LOAD_VAR(buf, a2_zoffs);
+   STATE_LOAD_VAR(buf, xadd_a1_control);
+   STATE_LOAD_VAR(buf, xadd_a2_control);
+   STATE_LOAD_VAR(buf, a1_pitch);
+   STATE_LOAD_VAR(buf, a2_pitch);
+   STATE_LOAD_VAR(buf, n_pixels);
+   STATE_LOAD_VAR(buf, n_lines);
+   STATE_LOAD_VAR(buf, a1_x);
+   STATE_LOAD_VAR(buf, a1_y);
+   STATE_LOAD_VAR(buf, a1_width);
+   STATE_LOAD_VAR(buf, a2_x);
+   STATE_LOAD_VAR(buf, a2_y);
+   STATE_LOAD_VAR(buf, a2_width);
+   STATE_LOAD_VAR(buf, a2_mask_x);
+   STATE_LOAD_VAR(buf, a2_mask_y);
+   STATE_LOAD_VAR(buf, a1_xadd);
+   STATE_LOAD_VAR(buf, a1_yadd);
+   STATE_LOAD_VAR(buf, a2_xadd);
+   STATE_LOAD_VAR(buf, a2_yadd);
+   STATE_LOAD_VAR(buf, a1_phrase_mode);
+   STATE_LOAD_VAR(buf, a2_phrase_mode);
+   STATE_LOAD_VAR(buf, a1_step_x);
+   STATE_LOAD_VAR(buf, a1_step_y);
+   STATE_LOAD_VAR(buf, a2_step_x);
+   STATE_LOAD_VAR(buf, a2_step_y);
+   STATE_LOAD_VAR(buf, outer_loop);
+   STATE_LOAD_VAR(buf, inner_loop);
+   STATE_LOAD_VAR(buf, a2_psize);
+   STATE_LOAD_VAR(buf, a1_psize);
+   STATE_LOAD_VAR(buf, gouraud_add);
+   STATE_LOAD_BUF(buf, gd_i, sizeof(gd_i));
+   STATE_LOAD_BUF(buf, gd_c, sizeof(gd_c));
+   STATE_LOAD_VAR(buf, gd_ia);
+   STATE_LOAD_VAR(buf, gd_ca);
+   STATE_LOAD_VAR(buf, colour_index);
+   STATE_LOAD_VAR(buf, zadd);
+   STATE_LOAD_BUF(buf, z_i, sizeof(z_i));
+   STATE_LOAD_VAR(buf, a1_clip_x);
+   STATE_LOAD_VAR(buf, a1_clip_y);
+
+   return (size_t)(buf - start);
+}

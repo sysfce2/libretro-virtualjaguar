@@ -213,3 +213,27 @@ uint16_t DACReadWord(uint32_t offset, uint32_t who)
 
    return 0xFFFF;	// May need SSTAT as well... (but may be a Jaguar II only feature)
 }
+
+#include "state.h"
+
+size_t DACStateSave(uint8_t *buf)
+{
+	uint8_t *start = buf;
+
+	STATE_SAVE_VAR(buf, bufferIndex);
+	STATE_SAVE_VAR(buf, numberOfSamples);
+	STATE_SAVE_VAR(buf, bufferDone);
+
+	return (size_t)(buf - start);
+}
+
+size_t DACStateLoad(const uint8_t *buf)
+{
+	const uint8_t *start = buf;
+
+	STATE_LOAD_VAR(buf, bufferIndex);
+	STATE_LOAD_VAR(buf, numberOfSamples);
+	STATE_LOAD_VAR(buf, bufferDone);
+
+	return (size_t)(buf - start);
+}

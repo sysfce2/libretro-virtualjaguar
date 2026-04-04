@@ -2509,3 +2509,104 @@ INLINE static void DSP_xor(void)
 	PRES = PRN ^ PRM;
 	SET_ZN(PRES);
 }
+
+
+/* Save state serialization for DSP */
+
+#include "state.h"
+
+size_t DSPStateSave(uint8_t *buf)
+{
+   uint8_t *start = buf;
+
+   STATE_SAVE_BUF(buf, dsp_ram_8, sizeof(dsp_ram_8));
+   STATE_SAVE_VAR(buf, dsp_pc);
+   STATE_SAVE_VAR(buf, dsp_acc);
+   STATE_SAVE_VAR(buf, dsp_remain);
+   STATE_SAVE_VAR(buf, dsp_modulo);
+   STATE_SAVE_VAR(buf, dsp_flags);
+   STATE_SAVE_VAR(buf, dsp_matrix_control);
+   STATE_SAVE_VAR(buf, dsp_pointer_to_matrix);
+   STATE_SAVE_VAR(buf, dsp_data_organization);
+   STATE_SAVE_VAR(buf, dsp_control);
+   STATE_SAVE_VAR(buf, dsp_div_control);
+   STATE_SAVE_VAR(buf, dsp_flag_z);
+   STATE_SAVE_VAR(buf, dsp_flag_n);
+   STATE_SAVE_VAR(buf, dsp_flag_c);
+   STATE_SAVE_BUF(buf, dsp_reg_bank_0, sizeof(dsp_reg_bank_0));
+   STATE_SAVE_BUF(buf, dsp_reg_bank_1, sizeof(dsp_reg_bank_1));
+
+   uint8_t active_bank = (dsp_reg == dsp_reg_bank_0) ? 0 : 1;
+   STATE_SAVE_VAR(buf, active_bank);
+
+   STATE_SAVE_VAR(buf, dsp_opcode_first_parameter);
+   STATE_SAVE_VAR(buf, dsp_opcode_second_parameter);
+   STATE_SAVE_VAR(buf, dsp_in_exec);
+   STATE_SAVE_VAR(buf, dsp_releaseTimeSlice_flag);
+
+   /* Pipeline state */
+   STATE_SAVE_BUF(buf, pipeline, sizeof(pipeline));
+   STATE_SAVE_VAR(buf, plPtrFetch);
+   STATE_SAVE_VAR(buf, plPtrRead);
+   STATE_SAVE_VAR(buf, plPtrExec);
+   STATE_SAVE_VAR(buf, plPtrWrite);
+   STATE_SAVE_BUF(buf, scoreboard, sizeof(scoreboard));
+   STATE_SAVE_VAR(buf, IMASKCleared);
+
+   STATE_SAVE_VAR(buf, prevR1);
+
+   return (size_t)(buf - start);
+}
+
+
+size_t DSPStateLoad(const uint8_t *buf)
+{
+   const uint8_t *start = buf;
+
+   STATE_LOAD_BUF(buf, dsp_ram_8, sizeof(dsp_ram_8));
+   STATE_LOAD_VAR(buf, dsp_pc);
+   STATE_LOAD_VAR(buf, dsp_acc);
+   STATE_LOAD_VAR(buf, dsp_remain);
+   STATE_LOAD_VAR(buf, dsp_modulo);
+   STATE_LOAD_VAR(buf, dsp_flags);
+   STATE_LOAD_VAR(buf, dsp_matrix_control);
+   STATE_LOAD_VAR(buf, dsp_pointer_to_matrix);
+   STATE_LOAD_VAR(buf, dsp_data_organization);
+   STATE_LOAD_VAR(buf, dsp_control);
+   STATE_LOAD_VAR(buf, dsp_div_control);
+   STATE_LOAD_VAR(buf, dsp_flag_z);
+   STATE_LOAD_VAR(buf, dsp_flag_n);
+   STATE_LOAD_VAR(buf, dsp_flag_c);
+   STATE_LOAD_BUF(buf, dsp_reg_bank_0, sizeof(dsp_reg_bank_0));
+   STATE_LOAD_BUF(buf, dsp_reg_bank_1, sizeof(dsp_reg_bank_1));
+
+   uint8_t active_bank;
+   STATE_LOAD_VAR(buf, active_bank);
+   if (active_bank == 0)
+   {
+      dsp_reg = dsp_reg_bank_0;
+      dsp_alternate_reg = dsp_reg_bank_1;
+   }
+   else
+   {
+      dsp_reg = dsp_reg_bank_1;
+      dsp_alternate_reg = dsp_reg_bank_0;
+   }
+
+   STATE_LOAD_VAR(buf, dsp_opcode_first_parameter);
+   STATE_LOAD_VAR(buf, dsp_opcode_second_parameter);
+   STATE_LOAD_VAR(buf, dsp_in_exec);
+   STATE_LOAD_VAR(buf, dsp_releaseTimeSlice_flag);
+
+   STATE_LOAD_BUF(buf, pipeline, sizeof(pipeline));
+   STATE_LOAD_VAR(buf, plPtrFetch);
+   STATE_LOAD_VAR(buf, plPtrRead);
+   STATE_LOAD_VAR(buf, plPtrExec);
+   STATE_LOAD_VAR(buf, plPtrWrite);
+   STATE_LOAD_BUF(buf, scoreboard, sizeof(scoreboard));
+   STATE_LOAD_VAR(buf, IMASKCleared);
+
+   STATE_LOAD_VAR(buf, prevR1);
+
+   return (size_t)(buf - start);
+}

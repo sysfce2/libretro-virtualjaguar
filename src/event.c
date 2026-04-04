@@ -21,6 +21,7 @@
 #include <boolean.h>
 
 #include "event.h"
+#include "state.h"
 
 
 #define EVENT_LIST_SIZE       32
@@ -230,4 +231,134 @@ void HandleNextEvent(int type/*= EVENT_MAIN*/)
 
       (*event)();
    }
+}
+
+
+/* Callback registry for save state serialization.
+ * Maps function pointers to integer IDs so events can be serialized. */
+
+extern void HalflineCallback(void);
+extern void TOMPITCallback(void);
+extern void JERRYPIT1Callback(void);
+extern void JERRYPIT2Callback(void);
+extern void JERRYI2SCallback(void);
+extern void DSPSampleCallback(void);
+
+typedef void (*event_callback_t)(void);
+
+static const event_callback_t callback_registry[] = {
+   NULL,                  /* 0 = invalid/empty */
+   HalflineCallback,     /* 1 */
+   TOMPITCallback,       /* 2 */
+   JERRYPIT1Callback,    /* 3 */
+   JERRYPIT2Callback,    /* 4 */
+   JERRYI2SCallback,     /* 5 */
+   DSPSampleCallback,    /* 6 */
+};
+#define CALLBACK_REGISTRY_SIZE (sizeof(callback_registry) / sizeof(callback_registry[0]))
+
+static uint8_t callback_to_id(event_callback_t cb)
+{
+   unsigned i;
+   if (!cb) return 0;
+   for (i = 1; i < CALLBACK_REGISTRY_SIZE; i++)
+   {
+      if (callback_registry[i] == cb)
+         return (uint8_t)i;
+   }
+   return 0; /* unknown callback — will be lost on load */
+}
+
+static event_callback_t id_to_callback(uint8_t id)
+{
+   if (id < CALLBACK_REGISTRY_SIZE)
+      return callback_registry[id];
+   return NULL;
+}
+
+
+size_t EventStateSave(uint8_t *buf)
+{
+   uint8_t *start = buf;
+   unsigned i;
+
+   STATE_SAVE_VAR(buf, nextEvent);
+   STATE_SAVE_VAR(buf, nextEventJERRY);
+   STATE_SAVE_VAR(buf, numberOfEvents);
+
+   /* Save both event lists — serialize callback as ID */
+   for (i = 0; i < EVENT_LIST_SIZE; i++)
+   {
+      uint8_t valid = eventList[i].valid ? 1 : 0;
+      uint8_t cb_id = callback_to_id(eventList[i].timerCallback);
+      int32_t etype = (int32_t)eventList[i].eventType;
+      double etime  = eventList[i].eventTime;
+
+      STATE_SAVE_VAR(buf, valid);
+      STATE_SAVE_VAR(buf, cb_id);
+      STATE_SAVE_VAR(buf, etype);
+      STATE_SAVE_VAR(buf, etime);
+   }
+
+   for (i = 0; i < EVENT_LIST_SIZE; i++)
+   {
+      uint8_t valid = eventListJERRY[i].valid ? 1 : 0;
+      uint8_t cb_id = callback_to_id(eventListJERRY[i].timerCallback);
+      int32_t etype = (int32_t)eventListJERRY[i].eventType;
+      double etime  = eventListJERRY[i].eventTime;
+
+      STATE_SAVE_VAR(buf, valid);
+      STATE_SAVE_VAR(buf, cb_id);
+      STATE_SAVE_VAR(buf, etype);
+      STATE_SAVE_VAR(buf, etime);
+   }
+
+   return (size_t)(buf - start);
+}
+
+
+size_t EventStateLoad(const uint8_t *buf)
+{
+   const uint8_t *start = buf;
+   unsigned i;
+
+   STATE_LOAD_VAR(buf, nextEvent);
+   STATE_LOAD_VAR(buf, nextEventJERRY);
+   STATE_LOAD_VAR(buf, numberOfEvents);
+
+   for (i = 0; i < EVENT_LIST_SIZE; i++)
+   {
+      uint8_t valid, cb_id;
+      int32_t etype;
+      double etime;
+
+      STATE_LOAD_VAR(buf, valid);
+      STATE_LOAD_VAR(buf, cb_id);
+      STATE_LOAD_VAR(buf, etype);
+      STATE_LOAD_VAR(buf, etime);
+
+      eventList[i].valid = valid ? true : false;
+      eventList[i].timerCallback = id_to_callback(cb_id);
+      eventList[i].eventType = etype;
+      eventList[i].eventTime = etime;
+   }
+
+   for (i = 0; i < EVENT_LIST_SIZE; i++)
+   {
+      uint8_t valid, cb_id;
+      int32_t etype;
+      double etime;
+
+      STATE_LOAD_VAR(buf, valid);
+      STATE_LOAD_VAR(buf, cb_id);
+      STATE_LOAD_VAR(buf, etype);
+      STATE_LOAD_VAR(buf, etime);
+
+      eventListJERRY[i].valid = valid ? true : false;
+      eventListJERRY[i].timerCallback = id_to_callback(cb_id);
+      eventListJERRY[i].eventType = etype;
+      eventListJERRY[i].eventTime = etime;
+   }
+
+   return (size_t)(buf - start);
 }

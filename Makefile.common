@@ -50,7 +50,7 @@ SOURCES_C :=  \
 
 # SIMD-accelerated blitter operations: select arch-specific implementation.
 # BLITTER_SIMD may be set explicitly to one of: scalar, sse2, neon.
-BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_scalar.c
+BLITTER_SIMD_SRC :=
 
 ifneq ($(BLITTER_SIMD),)
 ifeq (,$(filter scalar sse2 neon,$(BLITTER_SIMD)))
@@ -72,16 +72,21 @@ endif
 ifneq (,$(filter ios-arm64 tvos-arm64,$(platform)))
    BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_neon.c
 endif
-ifneq (,$(filter aarch64 arm64 arm,$(ARCH)))
+# Only aarch64/arm64 guaranteed to have NEON; plain 'arm' may lack it
+ifneq (,$(filter aarch64 arm64,$(ARCH)))
    BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_neon.c
 endif
-ifneq (,$(filter arm64 armv8% armv7% armhf arm,$(platform)))
+ifneq (,$(filter arm64 armv8% armv7% armhf,$(platform)))
    BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_neon.c
 endif
 
 # x86/x64 targets: use SSE2.
 ifneq (,$(filter x86_64 x86 i686 i386,$(ARCH)))
    BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
+   # 32-bit x86 may need explicit SSE2 enable
+   ifneq (,$(filter i686 i386 x86,$(ARCH)))
+      CFLAGS += -msse2
+   endif
 endif
 ifneq (,$(filter x86_64 x86 i686 i386 win-x64 win32,$(platform)))
    BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
@@ -91,13 +96,22 @@ ifneq (,$(filter MINGW64%,$(MSYSTEM)))
    BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
 endif
 
-# Native build fallback: auto-detect from host architecture
+# Native build fallback: auto-detect from host when no SIMD was selected above.
+ifeq ($(BLITTER_SIMD_SRC),)
 ifneq (,$(filter x86_64 x86 i686 i386,$(shell uname -m 2>/dev/null)))
    BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
 endif
+endif
+ifeq ($(BLITTER_SIMD_SRC),)
 ifneq (,$(filter aarch64 arm64,$(shell uname -m 2>/dev/null)))
    BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_neon.c
 endif
+endif
+endif
+
+# Fall back to scalar if no SIMD was selected (e.g., exotic platforms)
+ifeq ($(BLITTER_SIMD_SRC),)
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_scalar.c
 endif
 
 SOURCES_C += $(BLITTER_SIMD_SRC)

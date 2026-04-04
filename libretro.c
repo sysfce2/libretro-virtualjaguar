@@ -782,13 +782,15 @@ size_t retro_serialize_size(void)
 
 bool retro_serialize(void *data, size_t size)
 {
-   uint8_t *buf;
+   uint8_t *buf, *start;
+   size_t written;
    uint32_t magic, version, flags, reserved;
 
    if (!data || size < STATE_SIZE)
       return false;
 
-   buf = (uint8_t *)data;
+   start = (uint8_t *)data;
+   buf   = start;
 
    /* Header */
    magic    = STATE_MAGIC;
@@ -824,6 +826,14 @@ bool retro_serialize(void *data, size_t size)
    buf += JoystickStateSave(buf);
    buf += MTStateSave(buf);
    buf += DACStateSave(buf);
+
+   written = (size_t)(buf - start);
+   if (written > STATE_SIZE)
+      return false;
+
+   /* Zero-fill remaining bytes for deterministic save states */
+   if (written < STATE_SIZE)
+      memset(buf, 0, STATE_SIZE - written);
 
    return true;
 }

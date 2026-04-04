@@ -161,6 +161,8 @@ size_t JoystickStateSave(uint8_t *buf)
 	STATE_SAVE_BUF(buf, joystick_ram, sizeof(joystick_ram));
 	STATE_SAVE_BUF(buf, joypad0Buttons, sizeof(joypad0Buttons));
 	STATE_SAVE_BUF(buf, joypad1Buttons, sizeof(joypad1Buttons));
+	STATE_SAVE_VAR(buf, audioEnabled);
+	STATE_SAVE_VAR(buf, joysticksEnabled);
 
 	return (size_t)(buf - start);
 }
@@ -172,6 +174,8 @@ size_t JoystickStateLoad(const uint8_t *buf)
 	STATE_LOAD_BUF(buf, joystick_ram, sizeof(joystick_ram));
 	STATE_LOAD_BUF(buf, joypad0Buttons, sizeof(joypad0Buttons));
 	STATE_LOAD_BUF(buf, joypad1Buttons, sizeof(joypad1Buttons));
+	STATE_LOAD_VAR(buf, audioEnabled);
+	STATE_LOAD_VAR(buf, joysticksEnabled);
 
 	return (size_t)(buf - start);
 }

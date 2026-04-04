@@ -451,6 +451,10 @@ size_t EepromStateSave(uint8_t *buf)
 	STATE_SAVE_VAR(buf, jerry_writes_enabled);
 	STATE_SAVE_VAR(buf, jerry_ee_direct_jump);
 
+	/* EEPROM data arrays */
+	STATE_SAVE_BUF(buf, eeprom_ram, sizeof(eeprom_ram));
+	STATE_SAVE_BUF(buf, cdromEEPROM, sizeof(cdromEEPROM));
+
 	return (size_t)(buf - start);
 }
 
@@ -467,6 +471,10 @@ size_t EepromStateLoad(const uint8_t *buf)
 	STATE_LOAD_VAR(buf, jerry_ee_data_cnt);
 	STATE_LOAD_VAR(buf, jerry_writes_enabled);
 	STATE_LOAD_VAR(buf, jerry_ee_direct_jump);
+
+	/* EEPROM data arrays */
+	STATE_LOAD_BUF(buf, eeprom_ram, sizeof(eeprom_ram));
+	STATE_LOAD_BUF(buf, cdromEEPROM, sizeof(cdromEEPROM));
 
 	return (size_t)(buf - start);
 }

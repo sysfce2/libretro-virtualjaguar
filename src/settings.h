@@ -35,10 +35,7 @@ struct VJSettings
 
 	char jagBootPath[MAX_PATH];
 	char CDBootPath[MAX_PATH];
-	char EEPROMPath[MAX_PATH];
 	char alpineROMPath[MAX_PATH];
-	
-	char romName[MAX_PATH];
 };
 
 // BIOS types

@@ -17,6 +17,7 @@
 #include "joystick.h"
 #include "settings.h"
 #include "tom.h"
+#include "state.h"
 
 #define SAMPLERATE 48000
 #define BUFPAL  1920
@@ -776,17 +777,112 @@ void retro_set_controller_port_device(unsigned port, unsigned device)
 
 size_t retro_serialize_size(void)
 {
-   return 0;
+   return STATE_SIZE;
 }
 
 bool retro_serialize(void *data, size_t size)
 {
-   return false;
+   uint8_t *buf, *start;
+   size_t written;
+   uint32_t magic, version, flags, reserved;
+
+   if (!data || size < STATE_SIZE)
+      return false;
+
+   start = (uint8_t *)data;
+   buf   = start;
+
+   /* Header */
+   magic    = STATE_MAGIC;
+   version  = STATE_VERSION;
+   flags    = 0;
+   reserved = 0;
+   STATE_SAVE_VAR(buf, magic);
+   STATE_SAVE_VAR(buf, version);
+   STATE_SAVE_VAR(buf, flags);
+   STATE_SAVE_VAR(buf, reserved);
+
+   /* Large memory blocks */
+   STATE_SAVE_BUF(buf, jaguarMainRAM, 0x200000);  /* 2 MB main RAM */
+   STATE_SAVE_BUF(buf, tomRam8, 0x4000);           /* 16 KB TOM registers */
+
+   extern uint8_t jerry_ram_8[];
+   STATE_SAVE_BUF(buf, jerry_ram_8, 0x10000);      /* 64 KB JERRY registers */
+
+   /* Jaguar misc state */
+   extern bool lowerField;
+   STATE_SAVE_VAR(buf, lowerField);
+
+   /* Module state */
+   buf += M68KStateSave(buf);
+   buf += GPUStateSave(buf);
+   buf += DSPStateSave(buf);
+   buf += BlitterStateSave(buf);
+   buf += EventStateSave(buf);
+   buf += EepromStateSave(buf);
+   buf += JERRYStateSave(buf);
+   buf += TOMStateSave(buf);
+   buf += CDROMStateSave(buf);
+   buf += JoystickStateSave(buf);
+   buf += MTStateSave(buf);
+   buf += DACStateSave(buf);
+
+   written = (size_t)(buf - start);
+   if (written > STATE_SIZE)
+      return false;
+
+   /* Zero-fill remaining bytes for deterministic save states */
+   if (written < STATE_SIZE)
+      memset(buf, 0, STATE_SIZE - written);
+
+   return true;
 }
 
 bool retro_unserialize(const void *data, size_t size)
 {
-   return false;
+   const uint8_t *buf;
+   uint32_t magic, version, flags, reserved;
+
+   if (!data || size < STATE_SIZE)
+      return false;
+
+   buf = (const uint8_t *)data;
+
+   /* Validate header */
+   STATE_LOAD_VAR(buf, magic);
+   STATE_LOAD_VAR(buf, version);
+   STATE_LOAD_VAR(buf, flags);
+   STATE_LOAD_VAR(buf, reserved);
+
+   if (magic != STATE_MAGIC || version != STATE_VERSION)
+      return false;
+
+   /* Large memory blocks */
+   STATE_LOAD_BUF(buf, jaguarMainRAM, 0x200000);
+   STATE_LOAD_BUF(buf, tomRam8, 0x4000);
+
+   extern uint8_t jerry_ram_8[];
+   STATE_LOAD_BUF(buf, jerry_ram_8, 0x10000);
+
+   /* Jaguar misc state */
+   extern bool lowerField;
+   STATE_LOAD_VAR(buf, lowerField);
+
+   /* Module state */
+   buf += M68KStateLoad(buf);
+   buf += GPUStateLoad(buf);
+   buf += DSPStateLoad(buf);
+   buf += BlitterStateLoad(buf);
+   buf += EventStateLoad(buf);
+   buf += EepromStateLoad(buf);
+   buf += JERRYStateLoad(buf);
+   buf += TOMStateLoad(buf);
+   buf += CDROMStateLoad(buf);
+   buf += JoystickStateLoad(buf);
+   buf += MTStateLoad(buf);
+   buf += DACStateLoad(buf);
+
+   return true;
 }
 
 void retro_cheat_reset(void)
@@ -856,6 +952,13 @@ bool retro_load_game(const struct retro_game_info *info)
       return false;
 
    environ_cb(RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS, desc);
+
+   /* Report that save states are deterministic (no quirks).
+    * This enables run-ahead and netplay in RetroArch. */
+   {
+      uint64_t serialization_quirks = 0;
+      environ_cb(RETRO_ENVIRONMENT_SET_SERIALIZATION_QUIRKS, &serialization_quirks);
+   }
 
    if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt))
    {

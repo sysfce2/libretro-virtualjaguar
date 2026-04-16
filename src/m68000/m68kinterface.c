@@ -16,6 +16,8 @@
 #include "inlines.h"
 #include "cpuextra.h"
 #include "readcpu.h"
+#include "../state.h"
+#include "../vjag_memory.h"
 
 // Exception Vectors handled by emulation
 #define EXCEPTION_BUS_ERROR                2 /* This one is not emulated! */
@@ -401,4 +403,86 @@ void BuildCPUFunctionTable(void)
 			cpuFunctionTable[opcode] = f;
 		}
 	}
+}
+
+
+/* Save state serialization for 68K CPU */
+
+size_t M68KStateSave(uint8_t *buf)
+{
+	uint8_t *start = buf;
+
+	/* Save register struct fields individually (not the raw struct,
+	 * because pc_p/pc_oldp are pointers that differ per session). */
+	STATE_SAVE_BUF(buf, regs.regs, sizeof(regs.regs));
+	STATE_SAVE_VAR(buf, regs.usp);
+	STATE_SAVE_VAR(buf, regs.isp);
+	STATE_SAVE_VAR(buf, regs.sr);
+	STATE_SAVE_VAR(buf, regs.s);
+	STATE_SAVE_VAR(buf, regs.stopped);
+	STATE_SAVE_VAR(buf, regs.intmask);
+	STATE_SAVE_VAR(buf, regs.intLevel);
+	STATE_SAVE_VAR(buf, regs.c);
+	STATE_SAVE_VAR(buf, regs.z);
+	STATE_SAVE_VAR(buf, regs.n);
+	STATE_SAVE_VAR(buf, regs.v);
+	STATE_SAVE_VAR(buf, regs.x);
+	STATE_SAVE_VAR(buf, regs.pc);
+	STATE_SAVE_VAR(buf, regs.spcflags);
+	STATE_SAVE_VAR(buf, regs.prefetch_pc);
+	STATE_SAVE_VAR(buf, regs.prefetch);
+	STATE_SAVE_VAR(buf, regs.remainingCycles);
+	STATE_SAVE_VAR(buf, regs.interruptCycles);
+
+	/* Save pc_p and pc_oldp as offsets from jagMemSpace */
+	uint32_t pc_p_offset = (uint32_t)(regs.pc_p ? (regs.pc_p - jagMemSpace) : 0xFFFFFFFF);
+	uint32_t pc_oldp_offset = (uint32_t)(regs.pc_oldp ? (regs.pc_oldp - jagMemSpace) : 0xFFFFFFFF);
+	STATE_SAVE_VAR(buf, pc_p_offset);
+	STATE_SAVE_VAR(buf, pc_oldp_offset);
+
+	/* Local statics */
+	STATE_SAVE_VAR(buf, initialCycles);
+	STATE_SAVE_VAR(buf, checkForIRQToHandle);
+	STATE_SAVE_VAR(buf, IRQLevelToHandle);
+
+	return (size_t)(buf - start);
+}
+
+
+size_t M68KStateLoad(const uint8_t *buf)
+{
+	const uint8_t *start = buf;
+
+	STATE_LOAD_BUF(buf, regs.regs, sizeof(regs.regs));
+	STATE_LOAD_VAR(buf, regs.usp);
+	STATE_LOAD_VAR(buf, regs.isp);
+	STATE_LOAD_VAR(buf, regs.sr);
+	STATE_LOAD_VAR(buf, regs.s);
+	STATE_LOAD_VAR(buf, regs.stopped);
+	STATE_LOAD_VAR(buf, regs.intmask);
+	STATE_LOAD_VAR(buf, regs.intLevel);
+	STATE_LOAD_VAR(buf, regs.c);
+	STATE_LOAD_VAR(buf, regs.z);
+	STATE_LOAD_VAR(buf, regs.n);
+	STATE_LOAD_VAR(buf, regs.v);
+	STATE_LOAD_VAR(buf, regs.x);
+	STATE_LOAD_VAR(buf, regs.pc);
+	STATE_LOAD_VAR(buf, regs.spcflags);
+	STATE_LOAD_VAR(buf, regs.prefetch_pc);
+	STATE_LOAD_VAR(buf, regs.prefetch);
+	STATE_LOAD_VAR(buf, regs.remainingCycles);
+	STATE_LOAD_VAR(buf, regs.interruptCycles);
+
+	/* Reconstruct pc_p and pc_oldp from offsets */
+	uint32_t pc_p_offset, pc_oldp_offset;
+	STATE_LOAD_VAR(buf, pc_p_offset);
+	STATE_LOAD_VAR(buf, pc_oldp_offset);
+	regs.pc_p = (pc_p_offset != 0xFFFFFFFF) ? (jagMemSpace + pc_p_offset) : NULL;
+	regs.pc_oldp = (pc_oldp_offset != 0xFFFFFFFF) ? (jagMemSpace + pc_oldp_offset) : NULL;
+
+	STATE_LOAD_VAR(buf, initialCycles);
+	STATE_LOAD_VAR(buf, checkForIRQToHandle);
+	STATE_LOAD_VAR(buf, IRQLevelToHandle);
+
+	return (size_t)(buf - start);
 }

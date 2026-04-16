@@ -1691,3 +1691,87 @@ INLINE static void gpu_opcode_sh(void)
    }
    SET_ZN(RN);
 }
+
+
+/* Save state serialization for GPU */
+
+#include "state.h"
+
+size_t GPUStateSave(uint8_t *buf)
+{
+   uint8_t *start = buf;
+
+   STATE_SAVE_BUF(buf, gpu_ram_8, sizeof(gpu_ram_8));
+   STATE_SAVE_VAR(buf, gpu_pc);
+   STATE_SAVE_VAR(buf, gpu_acc);
+   STATE_SAVE_VAR(buf, gpu_remain);
+   STATE_SAVE_VAR(buf, gpu_hidata);
+   STATE_SAVE_VAR(buf, gpu_flags);
+   STATE_SAVE_VAR(buf, gpu_matrix_control);
+   STATE_SAVE_VAR(buf, gpu_pointer_to_matrix);
+   STATE_SAVE_VAR(buf, gpu_data_organization);
+   STATE_SAVE_VAR(buf, gpu_control);
+   STATE_SAVE_VAR(buf, gpu_div_control);
+   STATE_SAVE_VAR(buf, gpu_flag_z);
+   STATE_SAVE_VAR(buf, gpu_flag_n);
+   STATE_SAVE_VAR(buf, gpu_flag_c);
+   STATE_SAVE_BUF(buf, gpu_reg_bank_0, sizeof(gpu_reg_bank_0));
+   STATE_SAVE_BUF(buf, gpu_reg_bank_1, sizeof(gpu_reg_bank_1));
+
+   /* Save which register bank is active (0 or 1) */
+   uint8_t active_bank = (gpu_reg == gpu_reg_bank_0) ? 0 : 1;
+   STATE_SAVE_VAR(buf, active_bank);
+
+   STATE_SAVE_VAR(buf, gpu_instruction);
+   STATE_SAVE_VAR(buf, gpu_opcode_first_parameter);
+   STATE_SAVE_VAR(buf, gpu_opcode_second_parameter);
+   STATE_SAVE_VAR(buf, gpu_in_exec);
+   STATE_SAVE_VAR(buf, gpu_releaseTimeSlice_flag);
+
+   return (size_t)(buf - start);
+}
+
+
+size_t GPUStateLoad(const uint8_t *buf)
+{
+   const uint8_t *start = buf;
+
+   STATE_LOAD_BUF(buf, gpu_ram_8, sizeof(gpu_ram_8));
+   STATE_LOAD_VAR(buf, gpu_pc);
+   STATE_LOAD_VAR(buf, gpu_acc);
+   STATE_LOAD_VAR(buf, gpu_remain);
+   STATE_LOAD_VAR(buf, gpu_hidata);
+   STATE_LOAD_VAR(buf, gpu_flags);
+   STATE_LOAD_VAR(buf, gpu_matrix_control);
+   STATE_LOAD_VAR(buf, gpu_pointer_to_matrix);
+   STATE_LOAD_VAR(buf, gpu_data_organization);
+   STATE_LOAD_VAR(buf, gpu_control);
+   STATE_LOAD_VAR(buf, gpu_div_control);
+   STATE_LOAD_VAR(buf, gpu_flag_z);
+   STATE_LOAD_VAR(buf, gpu_flag_n);
+   STATE_LOAD_VAR(buf, gpu_flag_c);
+   STATE_LOAD_BUF(buf, gpu_reg_bank_0, sizeof(gpu_reg_bank_0));
+   STATE_LOAD_BUF(buf, gpu_reg_bank_1, sizeof(gpu_reg_bank_1));
+
+   /* Restore register bank pointers */
+   uint8_t active_bank;
+   STATE_LOAD_VAR(buf, active_bank);
+   if (active_bank == 0)
+   {
+      gpu_reg = gpu_reg_bank_0;
+      gpu_alternate_reg = gpu_reg_bank_1;
+   }
+   else
+   {
+      gpu_reg = gpu_reg_bank_1;
+      gpu_alternate_reg = gpu_reg_bank_0;
+   }
+
+   STATE_LOAD_VAR(buf, gpu_instruction);
+   STATE_LOAD_VAR(buf, gpu_opcode_first_parameter);
+   STATE_LOAD_VAR(buf, gpu_opcode_second_parameter);
+   STATE_LOAD_VAR(buf, gpu_in_exec);
+   STATE_LOAD_VAR(buf, gpu_releaseTimeSlice_flag);
+
+   return (size_t)(buf - start);
+}

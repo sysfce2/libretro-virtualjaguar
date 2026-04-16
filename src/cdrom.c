@@ -1121,3 +1121,66 @@ storew	TEMP,(r24)
 
    */
 
+#include "state.h"
+
+size_t CDROMStateSave(uint8_t *buf)
+{
+	uint8_t *start = buf;
+
+	STATE_SAVE_BUF(buf, cdRam, sizeof(cdRam));
+	STATE_SAVE_VAR(buf, cdCmd);
+	STATE_SAVE_VAR(buf, cdPtr);
+	STATE_SAVE_VAR(buf, haveCDGoodness);
+	STATE_SAVE_VAR(buf, min);
+	STATE_SAVE_VAR(buf, sec);
+	STATE_SAVE_VAR(buf, frm);
+	STATE_SAVE_VAR(buf, block);
+	STATE_SAVE_BUF(buf, cdBuf, sizeof(cdBuf));
+	STATE_SAVE_VAR(buf, cdBufPtr);
+	STATE_SAVE_VAR(buf, trackNum);
+	STATE_SAVE_VAR(buf, minTrack);
+	STATE_SAVE_VAR(buf, maxTrack);
+	STATE_SAVE_VAR(buf, currentState);
+	STATE_SAVE_VAR(buf, counter);
+	STATE_SAVE_VAR(buf, cmdTx);
+	STATE_SAVE_VAR(buf, busCmd);
+	STATE_SAVE_VAR(buf, rxData);
+	STATE_SAVE_VAR(buf, txData);
+	STATE_SAVE_VAR(buf, rxDataBit);
+	STATE_SAVE_VAR(buf, firstTime);
+	STATE_SAVE_BUF(buf, cdBuf2, sizeof(cdBuf2));
+	STATE_SAVE_BUF(buf, cdBuf3, sizeof(cdBuf3));
+
+	return (size_t)(buf - start);
+}
+
+size_t CDROMStateLoad(const uint8_t *buf)
+{
+	const uint8_t *start = buf;
+
+	STATE_LOAD_BUF(buf, cdRam, sizeof(cdRam));
+	STATE_LOAD_VAR(buf, cdCmd);
+	STATE_LOAD_VAR(buf, cdPtr);
+	STATE_LOAD_VAR(buf, haveCDGoodness);
+	STATE_LOAD_VAR(buf, min);
+	STATE_LOAD_VAR(buf, sec);
+	STATE_LOAD_VAR(buf, frm);
+	STATE_LOAD_VAR(buf, block);
+	STATE_LOAD_BUF(buf, cdBuf, sizeof(cdBuf));
+	STATE_LOAD_VAR(buf, cdBufPtr);
+	STATE_LOAD_VAR(buf, trackNum);
+	STATE_LOAD_VAR(buf, minTrack);
+	STATE_LOAD_VAR(buf, maxTrack);
+	STATE_LOAD_VAR(buf, currentState);
+	STATE_LOAD_VAR(buf, counter);
+	STATE_LOAD_VAR(buf, cmdTx);
+	STATE_LOAD_VAR(buf, busCmd);
+	STATE_LOAD_VAR(buf, rxData);
+	STATE_LOAD_VAR(buf, txData);
+	STATE_LOAD_VAR(buf, rxDataBit);
+	STATE_LOAD_VAR(buf, firstTime);
+	STATE_LOAD_BUF(buf, cdBuf2, sizeof(cdBuf2));
+	STATE_LOAD_BUF(buf, cdBuf3, sizeof(cdBuf3));
+
+	return (size_t)(buf - start);
+}

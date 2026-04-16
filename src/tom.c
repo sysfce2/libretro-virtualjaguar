@@ -1191,3 +1191,41 @@ void TOMPITCallback(void)
 
    TOMResetPIT();
 }
+
+#include "state.h"
+
+size_t TOMStateSave(uint8_t *buf)
+{
+	uint8_t *start = buf;
+
+	STATE_SAVE_VAR(buf, tomTimerPrescaler);
+	STATE_SAVE_VAR(buf, tomTimerDivider);
+	STATE_SAVE_VAR(buf, tomTimerCounter);
+	STATE_SAVE_VAR(buf, tom_jerry_int_pending);
+	STATE_SAVE_VAR(buf, tom_timer_int_pending);
+	STATE_SAVE_VAR(buf, tom_object_int_pending);
+	STATE_SAVE_VAR(buf, tom_gpu_int_pending);
+	STATE_SAVE_VAR(buf, tom_video_int_pending);
+	STATE_SAVE_VAR(buf, tomWidth);
+	STATE_SAVE_VAR(buf, tomHeight);
+
+	return (size_t)(buf - start);
+}
+
+size_t TOMStateLoad(const uint8_t *buf)
+{
+	const uint8_t *start = buf;
+
+	STATE_LOAD_VAR(buf, tomTimerPrescaler);
+	STATE_LOAD_VAR(buf, tomTimerDivider);
+	STATE_LOAD_VAR(buf, tomTimerCounter);
+	STATE_LOAD_VAR(buf, tom_jerry_int_pending);
+	STATE_LOAD_VAR(buf, tom_timer_int_pending);
+	STATE_LOAD_VAR(buf, tom_object_int_pending);
+	STATE_LOAD_VAR(buf, tom_gpu_int_pending);
+	STATE_LOAD_VAR(buf, tom_video_int_pending);
+	STATE_LOAD_VAR(buf, tomWidth);
+	STATE_LOAD_VAR(buf, tomHeight);
+
+	return (size_t)(buf - start);
+}

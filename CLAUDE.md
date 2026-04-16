@@ -64,7 +64,6 @@ Core options defined in `libretro_core_options.h` control blitter mode, BIOS usa
 
 ### Known Limitations
 
-- No save state support
 - Blitter not fully cycle-accurate (some games need fast blitter mode)
 - Bus contention between processors not emulated
 - Vertical count (VC) register behavior not fully accurate

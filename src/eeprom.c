@@ -435,3 +435,47 @@ static uint32_t eeprom_get_do(void)
 	return data;
 }
 
+#include "state.h"
+
+size_t EepromStateSave(uint8_t *buf)
+{
+	uint8_t *start = buf;
+
+	STATE_SAVE_VAR(buf, jerry_ee_state);
+	STATE_SAVE_VAR(buf, jerry_ee_op);
+	STATE_SAVE_VAR(buf, jerry_ee_rstate);
+	STATE_SAVE_VAR(buf, jerry_ee_address_data);
+	STATE_SAVE_VAR(buf, jerry_ee_address_cnt);
+	STATE_SAVE_VAR(buf, jerry_ee_data);
+	STATE_SAVE_VAR(buf, jerry_ee_data_cnt);
+	STATE_SAVE_VAR(buf, jerry_writes_enabled);
+	STATE_SAVE_VAR(buf, jerry_ee_direct_jump);
+
+	/* EEPROM data arrays */
+	STATE_SAVE_BUF(buf, eeprom_ram, sizeof(eeprom_ram));
+	STATE_SAVE_BUF(buf, cdromEEPROM, sizeof(cdromEEPROM));
+
+	return (size_t)(buf - start);
+}
+
+size_t EepromStateLoad(const uint8_t *buf)
+{
+	const uint8_t *start = buf;
+
+	STATE_LOAD_VAR(buf, jerry_ee_state);
+	STATE_LOAD_VAR(buf, jerry_ee_op);
+	STATE_LOAD_VAR(buf, jerry_ee_rstate);
+	STATE_LOAD_VAR(buf, jerry_ee_address_data);
+	STATE_LOAD_VAR(buf, jerry_ee_address_cnt);
+	STATE_LOAD_VAR(buf, jerry_ee_data);
+	STATE_LOAD_VAR(buf, jerry_ee_data_cnt);
+	STATE_LOAD_VAR(buf, jerry_writes_enabled);
+	STATE_LOAD_VAR(buf, jerry_ee_direct_jump);
+
+	/* EEPROM data arrays */
+	STATE_LOAD_BUF(buf, eeprom_ram, sizeof(eeprom_ram));
+	STATE_LOAD_BUF(buf, cdromEEPROM, sizeof(cdromEEPROM));
+
+	return (size_t)(buf - start);
+}
+

@@ -606,3 +606,43 @@ int JERRYGetPIT2Frequency(void)
    return systemClockFrequency / ((JERRYPIT2Prescaler + 1) * (JERRYPIT2Divider + 1));
 }
 
+#include "state.h"
+
+size_t JERRYStateSave(uint8_t *buf)
+{
+	uint8_t *start = buf;
+
+	STATE_SAVE_VAR(buf, JERRYPIT1Prescaler);
+	STATE_SAVE_VAR(buf, JERRYPIT1Divider);
+	STATE_SAVE_VAR(buf, JERRYPIT2Prescaler);
+	STATE_SAVE_VAR(buf, JERRYPIT2Divider);
+	STATE_SAVE_VAR(buf, jerry_timer_1_counter);
+	STATE_SAVE_VAR(buf, jerry_timer_2_counter);
+	STATE_SAVE_VAR(buf, jerryInterruptMask);
+	STATE_SAVE_VAR(buf, jerryPendingInterrupt);
+	STATE_SAVE_VAR(buf, JERRYI2SInterruptTimer);
+	STATE_SAVE_VAR(buf, jerryI2SCycles);
+	STATE_SAVE_VAR(buf, jerryIntPending);
+
+	return (size_t)(buf - start);
+}
+
+size_t JERRYStateLoad(const uint8_t *buf)
+{
+	const uint8_t *start = buf;
+
+	STATE_LOAD_VAR(buf, JERRYPIT1Prescaler);
+	STATE_LOAD_VAR(buf, JERRYPIT1Divider);
+	STATE_LOAD_VAR(buf, JERRYPIT2Prescaler);
+	STATE_LOAD_VAR(buf, JERRYPIT2Divider);
+	STATE_LOAD_VAR(buf, jerry_timer_1_counter);
+	STATE_LOAD_VAR(buf, jerry_timer_2_counter);
+	STATE_LOAD_VAR(buf, jerryInterruptMask);
+	STATE_LOAD_VAR(buf, jerryPendingInterrupt);
+	STATE_LOAD_VAR(buf, JERRYI2SInterruptTimer);
+	STATE_LOAD_VAR(buf, jerryI2SCycles);
+	STATE_LOAD_VAR(buf, jerryIntPending);
+
+	return (size_t)(buf - start);
+}
+

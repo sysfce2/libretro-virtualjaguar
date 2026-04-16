@@ -735,8 +735,6 @@ static void update_input(void)
    }
 }
 
-
-
 /************************************
  * libretro implementation
  ************************************/
@@ -1033,8 +1031,6 @@ unsigned retro_api_version(void)
    return RETRO_API_VERSION;
 }
 
-/* Pack EEPROM uint16_t arrays into the save buffer (big-endian).
- * Called before the frontend reads save data. */
 /* Pack eeprom_ram[] into the save buffer (big-endian byte order).
  * Called on every EEPROM write via eeprom_dirty_cb so the buffer
  * is always up-to-date for frontends that cache the pointer. */

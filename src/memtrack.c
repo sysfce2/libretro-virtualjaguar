@@ -187,7 +187,6 @@ size_t MTStateSave(uint8_t *buf)
 	STATE_SAVE_BUF(buf, mtMem, sizeof(mtMem));
 	STATE_SAVE_VAR(buf, mtCommand);
 	STATE_SAVE_VAR(buf, mtState);
-	STATE_SAVE_VAR(buf, haveMT);
 
 	return (size_t)(buf - start);
 }
@@ -199,7 +198,6 @@ size_t MTStateLoad(const uint8_t *buf)
 	STATE_LOAD_BUF(buf, mtMem, sizeof(mtMem));
 	STATE_LOAD_VAR(buf, mtCommand);
 	STATE_LOAD_VAR(buf, mtState);
-	STATE_LOAD_VAR(buf, haveMT);
 
 	return (size_t)(buf - start);
 }

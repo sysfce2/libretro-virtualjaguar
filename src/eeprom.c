@@ -381,7 +381,6 @@ size_t EepromStateSave(uint8_t *buf)
 
 	/* EEPROM data arrays */
 	STATE_SAVE_BUF(buf, eeprom_ram, sizeof(eeprom_ram));
-	STATE_SAVE_BUF(buf, cdromEEPROM, sizeof(cdromEEPROM));
 
 	return (size_t)(buf - start);
 }
@@ -402,7 +401,6 @@ size_t EepromStateLoad(const uint8_t *buf)
 
 	/* EEPROM data arrays */
 	STATE_LOAD_BUF(buf, eeprom_ram, sizeof(eeprom_ram));
-	STATE_LOAD_BUF(buf, cdromEEPROM, sizeof(cdromEEPROM));
 
 	return (size_t)(buf - start);
 }

@@ -953,6 +953,13 @@ bool retro_load_game(const struct retro_game_info *info)
 
    environ_cb(RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS, desc);
 
+   /* Report that save states are deterministic (no quirks).
+    * This enables run-ahead and netplay in RetroArch. */
+   {
+      uint64_t serialization_quirks = 0;
+      environ_cb(RETRO_ENVIRONMENT_SET_SERIALIZATION_QUIRKS, &serialization_quirks);
+   }
+
    if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt))
    {
       //fprintf(stderr, "Pixel format XRGB8888 not supported by platform, cannot use.\n");

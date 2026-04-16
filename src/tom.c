@@ -256,7 +256,6 @@
 #include "tom.h"
 
 #include <string.h>								// For memset()
-#include <stdlib.h>								// For rand()
 #include "blitter.h"
 #include "event.h"
 #include "gpu.h"

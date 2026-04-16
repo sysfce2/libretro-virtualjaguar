@@ -16,8 +16,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include <time.h>
-
 #include "jaguar.h"
 
 #include "cdrom.h"
@@ -34,6 +32,24 @@
 #include "tom.h"
 
 static bool frameDone;
+
+// Platform-independent xorshift32 PRNG for deterministic RAM initialization.
+// libc rand() produces different sequences on different platforms (glibc vs
+// macOS libsystem), which causes cross-platform baseline mismatches.
+static uint32_t jaguar_prng_state = 12345;
+
+void JaguarSeedPRNG(uint32_t seed)
+{
+   jaguar_prng_state = seed ? seed : 1;
+}
+
+uint32_t JaguarRand(void)
+{
+   jaguar_prng_state ^= jaguar_prng_state << 13;
+   jaguar_prng_state ^= jaguar_prng_state >> 17;
+   jaguar_prng_state ^= jaguar_prng_state << 5;
+   return jaguar_prng_state;
+}
 
 #define ALPINE_FUNCTIONS
 
@@ -541,15 +557,12 @@ void JaguarSetScreenPitch(uint32_t pitch)
 void JaguarInit(void)
 {
    unsigned i;
-   // Seed with a fixed value so emulation is deterministic across runs.
-   // Real hardware has quasi-random RAM contents at power-on, but using
-   // a constant seed preserves that simulation while keeping output
-   // reproducible for regression testing and save state consistency.
-   srand(12345);
+   // Reset the platform-independent PRNG for deterministic RAM fill
+   JaguarSeedPRNG(12345);
 
    // Contents of local RAM are quasi-stable; we simulate this by randomizing RAM contents
    for(i=0; i<0x200000; i+=4)
-      *((uint32_t *)(&jaguarMainRAM[i])) = rand();
+      *((uint32_t *)(&jaguarMainRAM[i])) = JaguarRand();
 
    lowerField = false;							// Reset the lower field flag
    memset(jaguarMainRAM + 0x804, 0xFF, 4);
@@ -634,8 +647,9 @@ void JaguarReset(void)
 
    // Only problem with this approach: It wipes out RAM loaded files...!
    // Contents of local RAM are quasi-stable; we simulate this by randomizing RAM contents
+   JaguarSeedPRNG(12345);
    for(i=8; i<0x200000; i+=4)
-      *((uint32_t *)(&jaguarMainRAM[i])) = rand();
+      *((uint32_t *)(&jaguarMainRAM[i])) = JaguarRand();
 
    // New timer base code stuffola...
    InitializeEventList();

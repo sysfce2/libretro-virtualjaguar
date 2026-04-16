@@ -666,7 +666,7 @@ void GPUReset(void)
 
    // Contents of local RAM are quasi-stable; we simulate this by randomizing RAM contents
    for(i=0; i<4096; i+=4)
-      *((uint32_t *)(&gpu_ram_8[i])) = rand();
+      *((uint32_t *)(&gpu_ram_8[i])) = JaguarRand();
 }
 
 uint32_t GPUReadPC(void)

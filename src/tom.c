@@ -256,7 +256,6 @@
 #include "tom.h"
 
 #include <string.h>								// For memset()
-#include <stdlib.h>								// For rand()
 #include "blitter.h"
 #include "event.h"
 #include "gpu.h"
@@ -732,8 +731,18 @@ void TOMExecHalfline(uint16_t halfline, bool render)
    uint32_t * TOMCurrentLine = 0;
    uint16_t topVisible;
    uint16_t bottomVisible;
+   uint16_t hp = GET16(tomRam8, HP);
 
    halfline &= 0x07FF;
+
+   // Update HC to approximate position within the scanline.
+   // Bit 10 (0x0400) is the half-line indicator, analogous to VC's
+   // field bit 11. The OP tests this via CONDITION_SECOND_HALF_LINE.
+   // Bits 0-9 approximate the position within the half-line.
+   if (halfline & 0x01)
+      SET16(tomRam8, HC, 0x0400 | (hp > 0 ? (hp + 1) / 2 : 0));
+   else
+      SET16(tomRam8, HC, 0);
 
    if (halfline & 0x01)							// Execute OP only on even halflines (non-interlaced only!)
       // Execute OP only on even halflines (skip higher resolutions for now...)
@@ -919,7 +928,8 @@ uint16_t TOMReadWord(uint32_t offset, uint32_t who)
       return data;
    }
    else if (offset == 0xF00004)
-      return rand() & 0x03FF;
+      // Return the current HC value from tomRam8 (updated each halfline)
+      return GET16(tomRam8, HC);
    else if ((offset >= GPU_CONTROL_RAM_BASE) && (offset < GPU_CONTROL_RAM_BASE + 0x20))
       return GPUReadWord(offset, who);
    else if ((offset >= GPU_WORK_RAM_BASE) && (offset < GPU_WORK_RAM_BASE + 0x1000))

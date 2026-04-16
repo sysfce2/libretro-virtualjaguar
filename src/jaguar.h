@@ -16,6 +16,8 @@ void JaguarSetScreenPitch(uint32_t pitch);
 void JaguarInit(void);
 void JaguarReset(void);
 void JaguarDone(void);
+void JaguarSeedPRNG(uint32_t seed);
+uint32_t JaguarRand(void);
 
 uint8_t JaguarReadByte(uint32_t offset, uint32_t who);
 uint16_t JaguarReadWord(uint32_t offset, uint32_t who);

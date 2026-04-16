@@ -822,7 +822,7 @@ void DSPReset(void)
 
 	// Contents of local RAM are quasi-stable; we simulate this by randomizing RAM contents
 	for(i=0; i<8192; i+=4)
-		*((uint32_t *)(&dsp_ram_8[i])) = rand();
+		*((uint32_t *)(&dsp_ram_8[i])) = JaguarRand();
 }
 
 void DSPDone(void)

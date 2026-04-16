@@ -541,8 +541,11 @@ void JaguarSetScreenPitch(uint32_t pitch)
 void JaguarInit(void)
 {
    unsigned i;
-   // For randomizing RAM
-   srand(time(NULL));
+   // Seed with a fixed value so emulation is deterministic across runs.
+   // Real hardware has quasi-random RAM contents at power-on, but using
+   // a constant seed preserves that simulation while keeping output
+   // reproducible for regression testing and save state consistency.
+   srand(12345);
 
    // Contents of local RAM are quasi-stable; we simulate this by randomizing RAM contents
    for(i=0; i<0x200000; i+=4)

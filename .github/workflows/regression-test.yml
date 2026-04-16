@@ -77,6 +77,9 @@ jobs:
         chmod +x "${MINIRETRO_BIN}"
         ./test/regression_test.sh ./${{ matrix.config.core }}
 
+    - name: Run SRAM interface tests
+      run: ./test/sram_test.sh ./${{ matrix.config.core }}
+
     - name: Upload diff artifacts
       if: failure()
       uses: actions/upload-artifact@v4

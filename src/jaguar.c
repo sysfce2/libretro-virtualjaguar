@@ -172,7 +172,7 @@ void M68KInstructionHook(void)
    pcQPtr &= 0x3FF;
 
    if (m68kPC & 0x01)		// Oops! We're fetching an odd address!
-      exit(0);
+      return;
 }
 
 /* Custom UAE 68000 read/write/IRQ functions */

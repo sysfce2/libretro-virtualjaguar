@@ -337,8 +337,9 @@ size_t EventStateLoad(const uint8_t *buf)
       STATE_LOAD_VAR(buf, etype);
       STATE_LOAD_VAR(buf, etime);
 
-      eventList[i].valid = valid ? true : false;
       eventList[i].timerCallback = id_to_callback(cb_id);
+      /* Invalidate event if callback could not be resolved */
+      eventList[i].valid = (valid && eventList[i].timerCallback) ? true : false;
       eventList[i].eventType = etype;
       eventList[i].eventTime = etime;
    }
@@ -354,8 +355,9 @@ size_t EventStateLoad(const uint8_t *buf)
       STATE_LOAD_VAR(buf, etype);
       STATE_LOAD_VAR(buf, etime);
 
-      eventListJERRY[i].valid = valid ? true : false;
       eventListJERRY[i].timerCallback = id_to_callback(cb_id);
+      /* Invalidate event if callback could not be resolved */
+      eventListJERRY[i].valid = (valid && eventListJERRY[i].timerCallback) ? true : false;
       eventListJERRY[i].eventType = etype;
       eventListJERRY[i].eventTime = etime;
    }

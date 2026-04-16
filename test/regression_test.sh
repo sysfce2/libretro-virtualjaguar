@@ -248,6 +248,138 @@ for rom in "${ROM_DIR}"/*.j64 "${ROM_DIR}"/*.rom; do
     fi
 done
 
+# --- Save state round-trip test ---
+# Validates retro_serialize/retro_unserialize: save state at frame N,
+# load it in a fresh run, continue for M frames.  Compare the final
+# screenshot with frame N+M of a straight reference run.
+#
+# miniretro timing: --dump-savestates-every N captures state AFTER
+# retro_run for frame N.  Loading that state and running M more
+# retro_runs produces the same output as a straight run's frame N+M.
+echo ""
+echo "==> Running save state round-trip test..."
+SS_SAVE_AT=200
+SS_RESUME_LEN=200
+SS_REF_FRAME=$((SS_SAVE_AT + SS_RESUME_LEN))
+for rom in "${ROM_DIR}"/*.j64 "${ROM_DIR}"/*.rom; do
+    [ -f "${rom}" ] || continue
+    rom_name="$(basename "${rom}" | sed 's/\.[^.]*$//')"
+
+    # Run 1: straight reference run, capture screenshot at target frame
+    ss_ref="${WORK_DIR}/ss_ref/${rom_name}"
+    mkdir -p "${ss_ref}"
+    "${MINIRETRO_BIN}" \
+        --core "${CORE}" --rom "${rom}" \
+        --output "${ss_ref}" --system "${ss_ref}" \
+        --frames $((SS_REF_FRAME + 1)) \
+        --dump-frames-every "${SS_REF_FRAME}" \
+        --no-alarm >/dev/null 2>&1 || true
+    ref_frame=$(find "${ss_ref}" -name "screenshot*.png" 2>/dev/null | sort | tail -1)
+
+    # Run 2: save state at frame SS_SAVE_AT
+    ss_save="${WORK_DIR}/ss_save/${rom_name}"
+    mkdir -p "${ss_save}"
+    "${MINIRETRO_BIN}" \
+        --core "${CORE}" --rom "${rom}" \
+        --output "${ss_save}" --system "${ss_save}" \
+        --frames $((SS_SAVE_AT + 1)) \
+        --dump-savestates-every "${SS_SAVE_AT}" \
+        --no-alarm >/dev/null 2>&1 || true
+    state_file=$(find "${ss_save}" -name "state*.bin" 2>/dev/null | sort | tail -1)
+
+    # Run 3: load state, run SS_RESUME_LEN frames, capture final screenshot
+    # After loading state@N and running M-1 retro_runs, the last
+    # screenshot dumped at interval M-1 corresponds to ref frame N+M.
+    ss_load="${WORK_DIR}/ss_load/${rom_name}"
+    mkdir -p "${ss_load}"
+    if [ -n "${state_file}" ]; then
+        "${MINIRETRO_BIN}" \
+            --core "${CORE}" --rom "${rom}" \
+            --output "${ss_load}" --system "${ss_load}" \
+            --frames "${SS_RESUME_LEN}" \
+            --dump-frames-every $((SS_RESUME_LEN - 1)) \
+            --load-savestate "${state_file}" \
+            --no-alarm >/dev/null 2>&1 || true
+    fi
+    load_frame=$(find "${ss_load}" -name "screenshot*.png" 2>/dev/null | sort | tail -1)
+
+    if [ -z "${ref_frame}" ] || [ -z "${state_file}" ] || [ -z "${load_frame}" ]; then
+        echo "   FAIL: ${rom_name} save state (missing frames or state file)"
+        FAIL=$((FAIL + 1))
+        SUMMARY="${SUMMARY}| ${rom_name} (save state) | :x: FAIL | missing output | - |\n"
+    elif cmp -s "${ref_frame}" "${load_frame}"; then
+        echo "   PASS: ${rom_name} save state round-trip (frame ${SS_REF_FRAME} matches)"
+        PASS=$((PASS + 1))
+        SUMMARY="${SUMMARY}| ${rom_name} (save state) | :white_check_mark: PASS | round-trip matches | - |\n"
+    else
+        echo "   FAIL: ${rom_name} save state round-trip (frame ${SS_REF_FRAME} differs)"
+        cp "${ref_frame}" "${DIFF_DIR}/${rom_name}_ss_ref.png"
+        cp "${load_frame}" "${DIFF_DIR}/${rom_name}_ss_load.png"
+        FAIL=$((FAIL + 1))
+        SUMMARY="${SUMMARY}| ${rom_name} (save state) | :x: FAIL | round-trip mismatch | See artifacts |\n"
+    fi
+done
+
+# --- Rewind simulation test ---
+# Simulates rewind: run past frame N while saving states periodically,
+# then load the frame-N state and run forward again.  The result must
+# match the reference from the save state test above.
+echo ""
+echo "==> Running rewind simulation test..."
+RW_REWIND_TO=${SS_SAVE_AT}
+RW_REMAIN=${SS_RESUME_LEN}
+RW_REF_FRAME=${SS_REF_FRAME}
+for rom in "${ROM_DIR}"/*.j64 "${ROM_DIR}"/*.rom; do
+    [ -f "${rom}" ] || continue
+    rom_name="$(basename "${rom}" | sed 's/\.[^.]*$//')"
+
+    # Reuse reference frame from save state test
+    ref_frame=$(find "${WORK_DIR}/ss_ref/${rom_name}" -name "screenshot*.png" 2>/dev/null | sort | tail -1)
+
+    # Run past the rewind point, dumping states every 100 frames
+    rw_full="${WORK_DIR}/rw_full/${rom_name}"
+    mkdir -p "${rw_full}"
+    "${MINIRETRO_BIN}" \
+        --core "${CORE}" --rom "${rom}" \
+        --output "${rw_full}" --system "${rw_full}" \
+        --frames $((RW_REF_FRAME + 1)) \
+        --dump-savestates-every 100 \
+        --no-alarm >/dev/null 2>&1 || true
+
+    # Find state file for the rewind point
+    rw_state="${rw_full}/state$(printf '%06d' ${RW_REWIND_TO}).bin"
+
+    # Load rewind state and continue
+    rw_resume="${WORK_DIR}/rw_resume/${rom_name}"
+    mkdir -p "${rw_resume}"
+    if [ -f "${rw_state}" ]; then
+        "${MINIRETRO_BIN}" \
+            --core "${CORE}" --rom "${rom}" \
+            --output "${rw_resume}" --system "${rw_resume}" \
+            --frames "${RW_REMAIN}" \
+            --dump-frames-every $((RW_REMAIN - 1)) \
+            --load-savestate "${rw_state}" \
+            --no-alarm >/dev/null 2>&1 || true
+    fi
+    rw_frame=$(find "${rw_resume}" -name "screenshot*.png" 2>/dev/null | sort | tail -1)
+
+    if [ -z "${ref_frame}" ] || [ ! -f "${rw_state}" ] || [ -z "${rw_frame}" ]; then
+        echo "   FAIL: ${rom_name} rewind (missing frames or state file)"
+        FAIL=$((FAIL + 1))
+        SUMMARY="${SUMMARY}| ${rom_name} (rewind) | :x: FAIL | missing output | - |\n"
+    elif cmp -s "${ref_frame}" "${rw_frame}"; then
+        echo "   PASS: ${rom_name} rewind (resume from frame ${RW_REWIND_TO} matches)"
+        PASS=$((PASS + 1))
+        SUMMARY="${SUMMARY}| ${rom_name} (rewind) | :white_check_mark: PASS | rewind matches | - |\n"
+    else
+        echo "   FAIL: ${rom_name} rewind (resume from frame ${RW_REWIND_TO} differs)"
+        cp "${ref_frame}" "${DIFF_DIR}/${rom_name}_rw_ref.png"
+        cp "${rw_frame}" "${DIFF_DIR}/${rom_name}_rw_resume.png"
+        FAIL=$((FAIL + 1))
+        SUMMARY="${SUMMARY}| ${rom_name} (rewind) | :x: FAIL | rewind mismatch | See artifacts |\n"
+    fi
+done
+
 echo ""
 echo "==> Results: ${PASS} passed, ${FAIL} failed, ${NEW} new (no baseline)"
 

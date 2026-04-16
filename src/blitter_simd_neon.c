@@ -108,18 +108,20 @@ static uint8_t neon_zcomp(uint64_t srcz, uint64_t dstz, uint8_t zmode)
  */
 static uint64_t neon_byte_merge(uint64_t src, uint64_t dst, uint16_t mask)
 {
-   /* Build 8-byte selection mask */
-   uint8_t sel[8];
-   sel[0] = (uint8_t)(mask & 0xFF);
-   sel[1] = (mask & 0x0100) ? 0xFF : 0x00;
-   sel[2] = (mask & 0x0200) ? 0xFF : 0x00;
-   sel[3] = (mask & 0x0400) ? 0xFF : 0x00;
-   sel[4] = (mask & 0x0800) ? 0xFF : 0x00;
-   sel[5] = (mask & 0x1000) ? 0xFF : 0x00;
-   sel[6] = (mask & 0x2000) ? 0xFF : 0x00;
-   sel[7] = (mask & 0x4000) ? 0xFF : 0x00;
+   /* Build 8-byte selection mask entirely in registers.
+    * Byte 0 uses the low 8 bits directly; bytes 1-7 are all-ones or
+    * all-zero based on mask bits 8-14. */
+   uint64_t sel =
+      ((uint64_t)(mask & 0x00FF)) |
+      ((uint64_t)((mask & 0x0100) ? 0xFF : 0x00) <<  8) |
+      ((uint64_t)((mask & 0x0200) ? 0xFF : 0x00) << 16) |
+      ((uint64_t)((mask & 0x0400) ? 0xFF : 0x00) << 24) |
+      ((uint64_t)((mask & 0x0800) ? 0xFF : 0x00) << 32) |
+      ((uint64_t)((mask & 0x1000) ? 0xFF : 0x00) << 40) |
+      ((uint64_t)((mask & 0x2000) ? 0xFF : 0x00) << 48) |
+      ((uint64_t)((mask & 0x4000) ? 0xFF : 0x00) << 56);
 
-   uint8x8_t vmask = vld1_u8(sel);
+   uint8x8_t vmask = vreinterpret_u8_u64(vcreate_u64(sel));
    uint8x8_t vsrc  = vreinterpret_u8_u64(vcreate_u64(src));
    uint8x8_t vdst  = vreinterpret_u8_u64(vcreate_u64(dst));
 

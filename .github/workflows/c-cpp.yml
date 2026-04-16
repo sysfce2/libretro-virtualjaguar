@@ -69,6 +69,26 @@ jobs:
     - name: Build
       run: make -j4 CC=${{ matrix.config.cc }} CXX=${{ matrix.config.cxx }}
 
+    - name: Run SIMD blitter tests
+      run: |
+        # Detect which SIMD impl to test based on runner architecture
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64|i686|i386)  SIMD_SRC=src/blitter_simd_sse2.c; EXTRA="-msse2" ;;
+          aarch64|arm64)     SIMD_SRC=src/blitter_simd_neon.c;  EXTRA="" ;;
+          *)                 SIMD_SRC=src/blitter_simd_scalar.c; EXTRA="" ;;
+        esac
+
+        echo "==> Testing ${SIMD_SRC}..."
+        ${{ matrix.config.cc }} -O2 -Wall ${EXTRA} -I src \
+          -o test_blitter_simd test/test_blitter_simd.c ${SIMD_SRC}
+        ./test_blitter_simd
+
+        echo "==> Cross-checking against scalar..."
+        ${{ matrix.config.cc }} -O2 -Wall -I src \
+          -o test_blitter_scalar test/test_blitter_simd.c src/blitter_simd_scalar.c
+        ./test_blitter_scalar
+
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:

@@ -48,6 +48,82 @@ SOURCES_C :=  \
 	$(CORE_DIR)/src/universalhdr.c \
 	$(CORE_DIR)/src/wavetable.c
 
+# SIMD-accelerated blitter operations: select arch-specific implementation.
+# BLITTER_SIMD may be set explicitly to one of: scalar, sse2, neon.
+BLITTER_SIMD_SRC :=
+
+ifneq ($(BLITTER_SIMD),)
+ifeq (,$(filter scalar sse2 neon,$(BLITTER_SIMD)))
+$(error Unsupported BLITTER_SIMD '$(BLITTER_SIMD)'; expected one of: scalar sse2 neon)
+endif
+endif
+
+ifeq ($(BLITTER_SIMD),sse2)
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
+else ifeq ($(BLITTER_SIMD),neon)
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_neon.c
+else ifeq ($(BLITTER_SIMD),scalar)
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_scalar.c
+else
+# ARM targets: prefer NEON when guaranteed or explicitly enabled.
+ifeq ($(HAVE_NEON), 1)
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_neon.c
+endif
+ifneq (,$(filter ios-arm64 tvos-arm64,$(platform)))
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_neon.c
+endif
+# aarch64/arm64 always have NEON; plain 'arm' may lack it.
+ifneq (,$(filter aarch64 arm64,$(ARCH)))
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_neon.c
+endif
+# armv8+ implies NEON; armv7/armhf only use NEON if HAVE_NEON was set above.
+ifneq (,$(filter arm64 armv8%,$(platform)))
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_neon.c
+endif
+
+# x86/x64 targets: use SSE2.
+ifneq (,$(filter x86_64 x86 i686 i386,$(ARCH)))
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
+endif
+ifneq (,$(filter x86_64 x86 i686 i386 win-x64 win32,$(platform)))
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
+endif
+# MSYS2/MinGW
+ifneq (,$(filter MINGW64% MINGW32%,$(MSYSTEM)))
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
+endif
+# 32-bit x86 needs explicit -msse2 (x86_64 has it baseline).
+ifeq ($(BLITTER_SIMD_SRC),$(CORE_DIR)/src/blitter_simd_sse2.c)
+ifneq (,$(filter i686 i386 x86 win32,$(ARCH) $(platform)))
+   CFLAGS += -msse2
+endif
+ifneq (,$(filter MINGW32%,$(MSYSTEM)))
+   CFLAGS += -msse2
+endif
+endif
+
+# Native build fallback: auto-detect from host architecture, but only for
+# native-build platforms (unix/osx/win). Cross-compile targets (vita, ps3,
+# libnx, etc.) set platform explicitly and should not use host detection.
+ifeq ($(BLITTER_SIMD_SRC),)
+ifneq (,$(filter unix osx win,$(platform)))
+ifneq (,$(filter x86_64 i686 i386,$(shell uname -m 2>/dev/null)))
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
+endif
+ifneq (,$(filter aarch64 arm64,$(shell uname -m 2>/dev/null)))
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_neon.c
+endif
+endif
+endif
+endif
+
+# Fall back to scalar if no SIMD was selected (e.g., exotic platforms)
+ifeq ($(BLITTER_SIMD_SRC),)
+   BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_scalar.c
+endif
+
+SOURCES_C += $(BLITTER_SIMD_SRC)
+
 ifneq ($(STATIC_LINKING), 1)
 SOURCES_C += \
 	     $(LIBRETRO_COMM_DIR)/compat/compat_strcasestr.c \

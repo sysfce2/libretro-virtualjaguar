@@ -93,12 +93,16 @@ ifneq (,$(filter MINGW64% MINGW32%,$(MSYSTEM)))
    BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
 endif
 # 32-bit x86 needs explicit -msse2 (x86_64 has it baseline).
+# Skip for MSVC (cl.exe) — it enables SSE2 by default on x86 and does
+# not understand the GCC -msse2 flag.
 ifeq ($(BLITTER_SIMD_SRC),$(CORE_DIR)/src/blitter_simd_sse2.c)
+ifeq (,$(findstring msvc,$(platform)))
 ifneq (,$(filter i686 i386 x86 win32,$(ARCH) $(platform)))
    CFLAGS += -msse2
 endif
 ifneq (,$(filter MINGW32%,$(MSYSTEM)))
    CFLAGS += -msse2
+endif
 endif
 endif
 

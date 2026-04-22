@@ -237,9 +237,15 @@ else ifeq ($(platform), switch)
 	STATIC_LINKING=1
 	fpic := -nostdlib
 
-# emscripten
+# emscripten (WebAssembly / asm.js for RetroArch Web Player)
 else ifeq ($(platform), emscripten)
 	TARGET := $(TARGET_NAME)_libretro_$(platform).bc
+	CC = emcc
+	CXX = em++
+	AR = emar
+	STATIC_LINKING = 1
+	FLAGS += -DHAVE_EMSCRIPTEN
+	CFLAGS += -O2
 
 # Windows MSVC 2017 all architectures
 else ifneq (,$(findstring windows_msvc2017,$(platform)))

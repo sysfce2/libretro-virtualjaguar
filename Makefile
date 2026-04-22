@@ -245,7 +245,6 @@ else ifeq ($(platform), emscripten)
 	AR = emar
 	STATIC_LINKING = 1
 	FLAGS += -DHAVE_EMSCRIPTEN
-	CFLAGS += -O2
 
 # Windows MSVC 2017 all architectures
 else ifneq (,$(findstring windows_msvc2017,$(platform)))

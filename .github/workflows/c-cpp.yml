@@ -46,6 +46,12 @@ jobs:
             cxx: 'g++'
             shell: 'msys2 {0}'
 
+          # Emscripten (WebAssembly)
+          - displayTargetName: 'Emscripten (WASM)'
+            artifact: 'virtualjaguar_libretro_emscripten.bc'
+            os: ubuntu-latest
+            emscripten: true
+
     name: build-${{ matrix.config.displayTargetName }}
     runs-on: ${{ matrix.config.os }}
 
@@ -66,12 +72,21 @@ jobs:
           mingw-w64-x86_64-gcc
           make
 
+    - name: Set up Emscripten
+      if: matrix.config.emscripten
+      uses: mymindstorm/setup-emsdk@v14
+
     - name: Build
+      if: ${{ !matrix.config.emscripten }}
       run: make -j4 CC=${{ matrix.config.cc }} CXX=${{ matrix.config.cxx }}
 
+    - name: Build (Emscripten)
+      if: matrix.config.emscripten
+      run: emmake make -j4 platform=emscripten
+
     - name: Run SIMD blitter tests
+      if: ${{ !matrix.config.emscripten }}
       run: |
-        # Detect which SIMD impl to test based on runner architecture
         ARCH=$(uname -m)
         case "$ARCH" in
           x86_64|i686|i386)  SIMD_SRC=src/blitter_simd_sse2.c; EXTRA="-msse2" ;;

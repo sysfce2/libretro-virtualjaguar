@@ -1700,6 +1700,7 @@ INLINE static void gpu_opcode_sh(void)
 size_t GPUStateSave(uint8_t *buf)
 {
    uint8_t *start = buf;
+   uint8_t active_bank;
 
    STATE_SAVE_BUF(buf, gpu_ram_8, sizeof(gpu_ram_8));
    STATE_SAVE_VAR(buf, gpu_pc);
@@ -1719,7 +1720,7 @@ size_t GPUStateSave(uint8_t *buf)
    STATE_SAVE_BUF(buf, gpu_reg_bank_1, sizeof(gpu_reg_bank_1));
 
    /* Save which register bank is active (0 or 1) */
-   uint8_t active_bank = (gpu_reg == gpu_reg_bank_0) ? 0 : 1;
+   active_bank = (gpu_reg == gpu_reg_bank_0) ? 0 : 1;
    STATE_SAVE_VAR(buf, active_bank);
 
    STATE_SAVE_VAR(buf, gpu_instruction);
@@ -1735,6 +1736,7 @@ size_t GPUStateSave(uint8_t *buf)
 size_t GPUStateLoad(const uint8_t *buf)
 {
    const uint8_t *start = buf;
+   uint8_t active_bank;
 
    STATE_LOAD_BUF(buf, gpu_ram_8, sizeof(gpu_ram_8));
    STATE_LOAD_VAR(buf, gpu_pc);
@@ -1754,7 +1756,6 @@ size_t GPUStateLoad(const uint8_t *buf)
    STATE_LOAD_BUF(buf, gpu_reg_bank_1, sizeof(gpu_reg_bank_1));
 
    /* Restore register bank pointers */
-   uint8_t active_bank;
    STATE_LOAD_VAR(buf, active_bank);
    if (active_bank == 0)
    {

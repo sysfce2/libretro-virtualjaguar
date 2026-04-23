@@ -92,12 +92,27 @@ Key docs:
 
 ### Testing
 
+RetroAchievements-related — **no RetroAchievements account, API, or gameplay server**; local validation only. The E2E harness still **fetches the pinned rcheevos source tarball from GitHub** when `build/rcheevos-static` is missing (CI may cache that directory); that is unrelated to contacting RetroAchievements services.
+
+- `test/tools/test_memory_map.c` — asserts `SET_MEMORY_MAPS`, `SET_SUPPORT_ACHIEVEMENTS` with **`true`**, and descriptor layout vs `retro_get_memory_data(SYSTEM_RAM)`.
+- `test/tools/test_rcheevos_e2e.sh` — downloads pinned **rcheevos** (`RCHEEVOS_REF`) when needed, builds `librcheevos.a`, then runs `test_rcheevos_e2e` to verify **rc_libretro** memory resolution (`RC_CONSOLE_ATARI_JAGUAR`) matches host RAM — the same mapping stack RetroArch uses before any RA cloud call.
+
 See `docs/test-infrastructure.md` for all test harnesses:
 - `test/test_dsp_mac40.c` — Jaguar DSP **40-bit MAC** accumulator semantics (`dsp_acc40.h`), run in CI with SIMD tests; relevant for long IIR chains (e.g. pink-noise generators on DSP).
 - `test/headless.py` — Python headless runner via libretro.py (screenshots, frame control)
 - `test/regression_test.sh` — screenshot regression suite with baseline comparison
 - `test/test_cd_boot.c` — low-level C harness with dlsym access to 68K registers and RAM
 - `test/sram_test.sh` — SRAM interface round-trip testing
+
+#### Headless framebuffer / 240p suite — how to report issues
+
+Profiling symbols like **`__muldi3`** (64-bit multiply helpers on some 32-bit ABIs) are a **compiler/performance** concern, **not** evidence that the Jaguar 240p test ROM’s DSP pink-noise path or NTSC timing is wrong. Do **not** frame “240p fails” primarily as a **`__muldi3`** bug unless you are optimizing a 32-bit build for speed.
+
+The **useful** regression story for automated screenshot / libretro.py / SessionBuilder runs is:
+
+- **Symptom:** On some cores or builds, a **non-RetroArch headless session** does not expose the **same composited framebuffer** via the libretro API (`video_screenshot`, etc.) as **RetroArch with the same core binary** — e.g. main menu of **jag_240p_test_suite v1.0.0** shows only a **thin band** (~order of **1k** non-black RGB pixels) vs **tens of thousands** on a known-good path.
+- **Interpretation:** Suspect **presentation / pixel source** — Object Processor and blitter output vs **what headless clients actually read** — until disproven with hardware or reference captures. This is **not** “prove 240p timing is wrong first.”
+- **Checks:** Use in-repo gates (e.g. **screenshots-preflight** / main-menu sanity, non-black pixel floor on the **~2000+** scale). Passing preflight ⇒ the **headless read-path** issue is resolved for that artifact; failing preflight ⇒ file a **framebuffer/compositing** bug for **headless libretro** consumption (logs, **two artifacts**: broken vs good), not a long **`__muldi3`** narrative.
 
 ### Known Limitations
 

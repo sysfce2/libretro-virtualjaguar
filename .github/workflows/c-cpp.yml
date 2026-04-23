@@ -199,6 +199,33 @@ jobs:
         $CC -O2 -Wall -I src -o test_dsp_mac40 test/test_dsp_mac40.c
         ./test_dsp_mac40
 
+    - name: Run memory map test
+      if: ${{ !matrix.config.emscripten && !matrix.config.android && !matrix.config.cross && runner.os != 'Windows' }}
+      run: |
+        CC="${{ matrix.config.cc }}"
+        if [ "$(uname)" = "Linux" ]; then
+          LDFLAGS="-ldl"
+        else
+          LDFLAGS=""
+        fi
+        $CC -O2 -Wall -o test/tools/test_memory_map test/tools/test_memory_map.c $LDFLAGS
+        ./test/tools/test_memory_map ./${{ matrix.config.artifact }}
+
+    - name: Cache pinned rcheevos E2E build
+      if: ${{ !matrix.config.emscripten && !matrix.config.android && !matrix.config.cross && runner.os != 'Windows' }}
+      uses: actions/cache@v4
+      with:
+        path: build/rcheevos-static
+        key: rcheevos-e2e-fd57e900-${{ runner.os }}-${{ matrix.config.cc }}-${{ matrix.config.displayTargetName }}
+
+    - name: RetroAchievements rc_libretro E2E test
+      if: ${{ !matrix.config.emscripten && !matrix.config.android && !matrix.config.cross && runner.os != 'Windows' }}
+      env:
+        # Immutable pin (rcheevos v12.3.0); tarball via .../archive/${SHA}.tar.gz
+        RCHEEVOS_REF: fd57e900758a9e3de343e7b0316b8a6059dce228
+        CC: ${{ matrix.config.cc }}
+      run: bash test/tools/test_rcheevos_e2e.sh ./${{ matrix.config.artifact }}
+
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:

@@ -1,3 +1,9 @@
+# Local E2E test build (downloads rcheevos tarball)
+/build/
+
+# Legacy local path (older CI recipe); keep ignored if present
+/test_memory_map
+
 # Build artifacts
 *.o
 *.so
@@ -26,6 +32,8 @@ test/test_*
 !test/test_*.c
 !test/test_*.sh
 !test/test_*.py
+test/tools/test_memory_map
+test/tools/sram_test
 test/dump_caller
 test/dump_pc
 test/heap_search

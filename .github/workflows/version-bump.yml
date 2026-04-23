@@ -1,0 +1,77 @@
+name: Bump Version & Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      dry_run:
+        description: 'Dry run (no commit/tag/push)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Parse current version
+      id: current
+      run: |
+        VER=$(grep -oP 'library_version\s*=\s*"v\K[0-9]+\.[0-9]+\.[0-9]+' libretro.c)
+        echo "version=${VER}" >> "$GITHUB_OUTPUT"
+        echo "Current version: v${VER}"
+
+    - name: Compute next version
+      id: next
+      run: |
+        IFS='.' read -r MAJOR MINOR PATCH <<< "${{ steps.current.outputs.version }}"
+        case "${{ inputs.bump }}" in
+          major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+          minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+          patch) PATCH=$((PATCH + 1)) ;;
+        esac
+        NEXT="${MAJOR}.${MINOR}.${PATCH}"
+        echo "version=${NEXT}" >> "$GITHUB_OUTPUT"
+        echo "Next version: v${NEXT}"
+
+    - name: Update libretro.c
+      run: |
+        sed -i 's/library_version  = "v${{ steps.current.outputs.version }}"/library_version  = "v${{ steps.next.outputs.version }}"/' libretro.c
+        grep 'library_version' libretro.c
+
+    - name: Commit, tag, and push
+      if: ${{ !inputs.dry_run }}
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add libretro.c
+        git commit -m "Bump version to v${{ steps.next.outputs.version }}"
+        git tag "v${{ steps.next.outputs.version }}"
+        git push origin HEAD --tags
+
+    - name: Summary
+      run: |
+        echo "### Version Bump" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        echo "- **From:** v${{ steps.current.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+        echo "- **To:** v${{ steps.next.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+        echo "- **Bump:** ${{ inputs.bump }}" >> "$GITHUB_STEP_SUMMARY"
+        echo "- **Dry run:** ${{ inputs.dry_run }}" >> "$GITHUB_STEP_SUMMARY"
+        if [ "${{ inputs.dry_run }}" = "false" ]; then
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tag \`v${{ steps.next.outputs.version }}\` pushed — Release workflow will create the GitHub Release automatically." >> "$GITHUB_STEP_SUMMARY"
+        fi

@@ -20,9 +20,27 @@ Output binary name varies by platform:
 - Linux: `virtualjaguar_libretro.so`
 - Windows: `virtualjaguar_libretro.dll`
 
-There is no test suite. CI runs `make -j4` on Ubuntu (GCC) and macOS (Clang).
+CI runs `make -j4` on Ubuntu (GCC) and macOS (Clang), plus screenshot regression tests via `test/regression_test.sh`. See `docs/test-infrastructure.md` for the full test harness inventory.
 
 ## Architecture
+
+### C Language Standard — C89/GNU89
+
+This codebase **must** compile as C89 (GNU89 dialect). The libretro buildbot uses MSVC on Windows, which enforces C89 strictly. CI includes a `c89-lint` job that catches violations.
+
+**Rules:**
+- **No mid-block variable declarations.** All variables must be declared at the top of their enclosing block (function or `{}`), before any statements. This is the most common violation.
+- `//` comments are allowed (GNU89 extension), but `/* */` is preferred for new code.
+- No C99 features: no `for (int i = ...)`, no compound literals, no designated initializers, no VLAs.
+- SIMD files (`src/blitter_simd_sse2.c`, `src/blitter_simd_neon.c`) are exempt from the lint check since they require platform-specific headers.
+- Machine-generated files (`src/m68000/*`) are also exempt.
+
+**Local check before pushing:**
+```bash
+gcc -fsyntax-only -std=gnu89 -Werror=declaration-after-statement \
+    -I. -Isrc -Isrc/m68000 -Ilibretro-common/include \
+    -D__LIBRETRO__ -DINLINE="inline" src/YOURFILE.c
+```
 
 ### Atari Jaguar Hardware Emulation
 
@@ -56,11 +74,29 @@ Core options defined in `libretro_core_options.h` control blitter mode, BIOS usa
 - `src/` — emulator core (hardware chips, CPU, I/O, BIOS ROMs as C arrays)
 - `src/m68000/` — UAE-derived 68K CPU emulation
 - `libretro-common/` — shared libretro utility library (string, file, VFS)
-- `docs/` — original Virtual Jaguar documentation, changelog, known issues
+- `docs/` — documentation: changelog, known issues, BUTCH register map, CD data flow, test infrastructure
+- `test/tools` — test scripts and headless front-ends
+- `test/roms` — test ROMs; `private/` subdirectory has commercial ROMs and BIOSes
 
 ### Build System
 
 `Makefile` handles 30+ platform targets with auto-detection. `Makefile.common` lists all source files. Platform is selected via `platform=` variable or auto-detected from `uname`. Key flags: `-D__LIBRETRO__`, `-DMSB_FIRST` for big-endian platforms.
+
+### Jaguar CD Emulation
+
+CD support is implemented across `src/cdrom.c` (BUTCH chip / FIFO / DSA commands), `src/cdintf.c` (disc image loading: CUE/BIN, CHD, CDI), and hooks in `src/jaguar.c` (BIOS auth bypass, boot stub injection).
+
+Key docs:
+- `docs/butch-registers.md` — full BUTCH register map ($DFFF00-$DFFF2F) with bit definitions
+- `docs/cd-data-flow.md` — how CD data moves from disc to RAM (I2S -> FIFO -> GPU ISR -> RAM), BIOS code map, boot stub layout
+
+### Testing
+
+See `docs/test-infrastructure.md` for all test harnesses:
+- `test/headless.py` — Python headless runner via libretro.py (screenshots, frame control)
+- `test/regression_test.sh` — screenshot regression suite with baseline comparison
+- `test/test_cd_boot.c` — low-level C harness with dlsym access to 68K registers and RAM
+- `test/sram_test.sh` — SRAM interface round-trip testing
 
 ### Known Limitations
 

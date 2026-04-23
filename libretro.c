@@ -781,6 +781,8 @@ bool retro_serialize(void *data, size_t size)
    uint8_t *buf, *start;
    size_t written;
    uint32_t magic, version, flags, reserved;
+   extern uint8_t jerry_ram_8[];
+   extern bool lowerField;
 
    if (!data || size < STATE_SIZE)
       return false;
@@ -802,11 +804,9 @@ bool retro_serialize(void *data, size_t size)
    STATE_SAVE_BUF(buf, jaguarMainRAM, 0x200000);  /* 2 MB main RAM */
    STATE_SAVE_BUF(buf, tomRam8, 0x4000);           /* 16 KB TOM registers */
 
-   extern uint8_t jerry_ram_8[];
    STATE_SAVE_BUF(buf, jerry_ram_8, 0x10000);      /* 64 KB JERRY registers */
 
    /* Jaguar misc state */
-   extern bool lowerField;
    STATE_SAVE_VAR(buf, lowerField);
 
    /* Module state */
@@ -838,6 +838,8 @@ bool retro_unserialize(const void *data, size_t size)
 {
    const uint8_t *buf;
    uint32_t magic, version, flags, reserved;
+   extern uint8_t jerry_ram_8[];
+   extern bool lowerField;
 
    if (!data || size < STATE_SIZE)
       return false;
@@ -857,11 +859,9 @@ bool retro_unserialize(const void *data, size_t size)
    STATE_LOAD_BUF(buf, jaguarMainRAM, 0x200000);
    STATE_LOAD_BUF(buf, tomRam8, 0x4000);
 
-   extern uint8_t jerry_ram_8[];
    STATE_LOAD_BUF(buf, jerry_ram_8, 0x10000);
 
    /* Jaguar misc state */
-   extern bool lowerField;
    STATE_LOAD_VAR(buf, lowerField);
 
    /* Module state */

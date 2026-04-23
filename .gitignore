@@ -1,3 +1,4 @@
+# Build artifacts
 *.o
 *.so
 *.dll
@@ -5,7 +6,43 @@
 *.exe
 *.js
 *.bc
+
+# macOS
 .DS_Store
 .build
+
+# IDE / editor
 /.claude
+/.cursor
+/.vscode
+
+# Python virtual environments
+.venv*/
+
+# Test binaries and debug artifacts
 test/test_blitter_simd
+test/test_blitter_scalar
+test/test_*
+!test/test_*.c
+!test/test_*.sh
+!test/test_*.py
+test/dump_caller
+test/dump_pc
+test/heap_search
+test/*.dSYM/
+
+# Test logs
+*.log
+test/*.log
+
+# Test ROMs (keep source scripts, ignore binaries)
+test/roms/*.jag
+test/roms/*.rom
+test/roms/private/
+
+# Reference docs (large PDFs, not source)
+docs/atari-jaguar-1999/
+
+# LLDB scripts (local debug helpers)
+test/lldb_*.cmd
+test/lldb_*.py

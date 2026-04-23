@@ -92,30 +92,21 @@ endif
 ifneq (,$(filter MINGW64% MINGW32%,$(MSYSTEM)))
    BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
 endif
-# 32-bit x86 needs explicit -msse2 (x86_64 has it baseline).
-# Skip for MSVC (cl.exe) — it enables SSE2 by default on x86 and does
-# not understand the GCC -msse2 flag.
-ifeq ($(BLITTER_SIMD_SRC),$(CORE_DIR)/src/blitter_simd_sse2.c)
-ifeq (,$(findstring msvc,$(platform)))
-ifneq (,$(filter i686 i386 x86 win32,$(ARCH) $(platform)))
-   CFLAGS += -msse2
-endif
-ifneq (,$(filter MINGW32%,$(MSYSTEM)))
-   CFLAGS += -msse2
-endif
-endif
-endif
 
 # Native build fallback: auto-detect from host architecture, but only for
 # native-build platforms (unix/osx/win). Cross-compile targets (vita, ps3,
 # libnx, etc.) set platform explicitly and should not use host detection.
+# Also skip when CC looks like a cross-compiler (e.g. arm-webos-linux-gnueabi-gcc).
+BLITTER_CROSS_CC := $(findstring arm-,$(CC))$(findstring aarch64-,$(CC))$(findstring mips,$(CC))$(findstring powerpc,$(CC))
 ifeq ($(BLITTER_SIMD_SRC),)
+ifeq ($(BLITTER_CROSS_CC),)
 ifneq (,$(filter unix osx win,$(platform)))
 ifneq (,$(filter x86_64 i686 i386,$(shell uname -m 2>/dev/null)))
    BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_sse2.c
 endif
 ifneq (,$(filter aarch64 arm64,$(shell uname -m 2>/dev/null)))
    BLITTER_SIMD_SRC := $(CORE_DIR)/src/blitter_simd_neon.c
+endif
 endif
 endif
 endif
@@ -127,6 +118,14 @@ ifeq ($(BLITTER_SIMD_SRC),)
 endif
 
 SOURCES_C += $(BLITTER_SIMD_SRC)
+
+# Add -msse2 flag for all GCC/Clang SSE2 builds. No-op on x86_64 (baseline),
+# required on i686 / gcc -m32. Skip for MSVC (uses /arch:SSE2, not -msse2).
+ifeq ($(BLITTER_SIMD_SRC),$(CORE_DIR)/src/blitter_simd_sse2.c)
+ifeq (,$(findstring msvc,$(platform)))
+   CFLAGS += -msse2
+endif
+endif
 
 ifneq ($(STATIC_LINKING), 1)
 SOURCES_C += \

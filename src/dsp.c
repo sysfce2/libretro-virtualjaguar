@@ -2518,6 +2518,7 @@ INLINE static void DSP_xor(void)
 size_t DSPStateSave(uint8_t *buf)
 {
    uint8_t *start = buf;
+   uint8_t active_bank;
 
    STATE_SAVE_BUF(buf, dsp_ram_8, sizeof(dsp_ram_8));
    STATE_SAVE_VAR(buf, dsp_pc);
@@ -2536,7 +2537,7 @@ size_t DSPStateSave(uint8_t *buf)
    STATE_SAVE_BUF(buf, dsp_reg_bank_0, sizeof(dsp_reg_bank_0));
    STATE_SAVE_BUF(buf, dsp_reg_bank_1, sizeof(dsp_reg_bank_1));
 
-   uint8_t active_bank = (dsp_reg == dsp_reg_bank_0) ? 0 : 1;
+   active_bank = (dsp_reg == dsp_reg_bank_0) ? 0 : 1;
    STATE_SAVE_VAR(buf, active_bank);
 
    STATE_SAVE_VAR(buf, dsp_opcode_first_parameter);
@@ -2562,6 +2563,7 @@ size_t DSPStateSave(uint8_t *buf)
 size_t DSPStateLoad(const uint8_t *buf)
 {
    const uint8_t *start = buf;
+   uint8_t active_bank;
 
    STATE_LOAD_BUF(buf, dsp_ram_8, sizeof(dsp_ram_8));
    STATE_LOAD_VAR(buf, dsp_pc);
@@ -2580,7 +2582,6 @@ size_t DSPStateLoad(const uint8_t *buf)
    STATE_LOAD_BUF(buf, dsp_reg_bank_0, sizeof(dsp_reg_bank_0));
    STATE_LOAD_BUF(buf, dsp_reg_bank_1, sizeof(dsp_reg_bank_1));
 
-   uint8_t active_bank;
    STATE_LOAD_VAR(buf, active_bank);
    if (active_bank == 0)
    {

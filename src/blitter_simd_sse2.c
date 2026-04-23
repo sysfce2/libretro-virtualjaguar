@@ -10,6 +10,17 @@
 
 #include "blitter_simd.h"
 #include <emmintrin.h>  /* SSE2 */
+#include <string.h>     /* memcpy for type-punning extract */
+
+/* _mm_cvtsi128_si64 only exists on x86_64 (needs 64-bit GP register).
+ * memcpy from the __m128i is portable, alignment-safe, and compilers
+ * optimize it to a single register move. */
+static uint64_t sse2_extract_u64(__m128i v)
+{
+   uint64_t r;
+   memcpy(&r, &v, sizeof(r));
+   return r;
+}
 
 /* Logic Function Unit — SSE2
  *
@@ -41,7 +52,7 @@ static uint64_t sse2_lfu(uint64_t srcd, uint64_t dstd, uint8_t lfu_func)
    __m128i t3 = _mm_and_si128(_mm_and_si128(vs,  vd),  vf3);
 
    __m128i result = _mm_or_si128(_mm_or_si128(t0, t1), _mm_or_si128(t2, t3));
-   return (uint64_t)_mm_cvtsi128_si64(result);
+   return sse2_extract_u64(result);
 }
 
 /* Data Comparator — SSE2
@@ -75,6 +86,7 @@ static uint8_t sse2_dcomp(uint64_t patd, uint64_t srcd, uint64_t dstd, bool cmpd
 static uint8_t sse2_zcomp(uint64_t srcz, uint64_t dstz, uint8_t zmode)
 {
    uint8_t result = 0;
+   uint8_t packed = 0;
 
    __m128i vs = _mm_set_epi64x(0, (int64_t)srcz);
    __m128i vd = _mm_set_epi64x(0, (int64_t)dstz);
@@ -107,7 +119,6 @@ static uint8_t sse2_zcomp(uint64_t srcz, uint64_t dstz, uint8_t zmode)
 
    /* movemask gives 2 bits per 16-bit lane (one per byte).
     * Convert to 1 bit per lane: lanes at positions 0,2,4,6 */
-   uint8_t packed = 0;
    if (result & 0x03) packed |= 0x01;  /* lane 0: bytes 0-1 */
    if (result & 0x0C) packed |= 0x02;  /* lane 1: bytes 2-3 */
    if (result & 0x30) packed |= 0x04;  /* lane 2: bytes 4-5 */
@@ -129,6 +140,8 @@ static uint64_t sse2_byte_merge(uint64_t src, uint64_t dst, uint16_t mask)
     * Bytes 1-7 = 0xFF or 0x00 from mask bits 8-14 (whole-byte select).
     * We expand each bit to a full 0xFF byte using sign-extension. */
    uint64_t sel64 = (uint64_t)(mask & 0xFF);  /* byte 0: per-bit */
+   __m128i vmask, vsrc, vdst, r;
+
    sel64 |= (uint64_t)((uint8_t)(-(int8_t)((mask >> 8)  & 1))) << 8;
    sel64 |= (uint64_t)((uint8_t)(-(int8_t)((mask >> 9)  & 1))) << 16;
    sel64 |= (uint64_t)((uint8_t)(-(int8_t)((mask >> 10) & 1))) << 24;
@@ -137,17 +150,17 @@ static uint64_t sse2_byte_merge(uint64_t src, uint64_t dst, uint16_t mask)
    sel64 |= (uint64_t)((uint8_t)(-(int8_t)((mask >> 13) & 1))) << 48;
    sel64 |= (uint64_t)((uint8_t)(-(int8_t)((mask >> 14) & 1))) << 56;
 
-   __m128i vmask = _mm_set_epi64x(0, (int64_t)sel64);
-   __m128i vsrc  = _mm_set_epi64x(0, (int64_t)src);
-   __m128i vdst  = _mm_set_epi64x(0, (int64_t)dst);
+   vmask = _mm_set_epi64x(0, (int64_t)sel64);
+   vsrc  = _mm_set_epi64x(0, (int64_t)src);
+   vdst  = _mm_set_epi64x(0, (int64_t)dst);
 
    /* result = (src & mask) | (dst & ~mask) */
-   __m128i r = _mm_or_si128(
+   r = _mm_or_si128(
       _mm_and_si128(vsrc, vmask),
       _mm_andnot_si128(vmask, vdst)
    );
 
-   return (uint64_t)_mm_cvtsi128_si64(r);
+   return sse2_extract_u64(r);
 }
 
 const blitter_simd_ops_t blitter_simd_ops = {
